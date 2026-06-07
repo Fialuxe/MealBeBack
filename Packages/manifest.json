@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.meta.xr.mrutilitykit": "201.0.0",
     "com.meta.xr.sdk.all": "201.0.0",
     "com.unity.ai.navigation": "2.0.12",
     "com.unity.cloud.gltfast": "6.19.0",
