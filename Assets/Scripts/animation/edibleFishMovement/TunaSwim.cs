@@ -105,7 +105,7 @@ public class TunaSwim : MonoBehaviour
     Vector3[] _spineBendAxis, _caudalBendAxis, _pectoralFlapAxis;
     float[] _pectoralSide; // +1 / -1（左右の符号）
 
-    Vector3 _boundsCenter;
+    [HideInInspector] public Vector3 boundsCenter; // set by AquariumSceneSetup; defaults to spawn position in Awake
     float _currentSpeed;
     float _yawRate, _pitchRate;
     float _currentBank;
@@ -137,7 +137,7 @@ public class TunaSwim : MonoBehaviour
         AutoFindBones();
         CacheRestPose();
 
-        _boundsCenter = transform.position;
+        boundsCenter = transform.position;
         _currentSpeed = cruiseSpeed;
         _noiseSeedYaw = Random.value * 1000f;
         _noiseSeedPitch = Random.value * 1000f;
@@ -257,7 +257,7 @@ public class TunaSwim : MonoBehaviour
         // 境界に近づいたら中心へ向けて旋回
         if (useBounds)
         {
-            Vector3 toCenter = _boundsCenter - transform.position;
+            Vector3 toCenter = boundsCenter - transform.position;
             float dist = toCenter.magnitude;
             float soft = boundsRadius * boundsSoftEdge;
             if (dist > soft)
@@ -359,7 +359,7 @@ public class TunaSwim : MonoBehaviour
     {
         if (useBounds)
         {
-            Vector3 c = Application.isPlaying ? _boundsCenter : transform.position;
+            Vector3 c = Application.isPlaying ? boundsCenter : transform.position;
             Gizmos.color = new Color(0.2f, 0.7f, 1f, 0.25f);
             Gizmos.DrawWireSphere(c, boundsRadius);
         }
