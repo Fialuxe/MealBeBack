@@ -2938,7 +2938,7 @@ ParticleSystemRenderer:
   m_MaxParticleSize: 0.5
   m_CameraVelocityScale: 0
   m_VelocityScale: 0
-  m_LengthScale: 4
+  m_LengthScale: 8
   m_SortingFudge: 0
   m_NormalDirection: 1
   m_ShadowBias: 0
@@ -3681,7 +3681,7 @@ ParticleSystem:
     sphericalDirectionAmount: 0
     randomPositionAmount: 0
     radius:
-      value: 10
+      value: 30
       mode: 0
       spread: 0
       speed:
@@ -8012,11 +8012,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 9012947104403321986, guid: b27c35b8d585a9b46b6086eddcc1af5a, type: 3}
       propertyPath: m_LocalScale.x
-      value: 3000
+      value: 1500
       objectReference: {fileID: 0}
     - target: {fileID: 9012947104403321986, guid: b27c35b8d585a9b46b6086eddcc1af5a, type: 3}
       propertyPath: m_LocalScale.z
-      value: 3000
+      value: 1500
       objectReference: {fileID: 0}
     - target: {fileID: 9012947104403321986, guid: b27c35b8d585a9b46b6086eddcc1af5a, type: 3}
       propertyPath: m_LocalPosition.x
@@ -8024,7 +8024,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 9012947104403321986, guid: b27c35b8d585a9b46b6086eddcc1af5a, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 14
+      value: 14.25
       objectReference: {fileID: 0}
     - target: {fileID: 9012947104403321986, guid: b27c35b8d585a9b46b6086eddcc1af5a, type: 3}
       propertyPath: m_LocalPosition.z

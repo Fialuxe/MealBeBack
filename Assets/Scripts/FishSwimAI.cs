@@ -11,6 +11,13 @@ using UnityEngine;
 ///   ・目標方向 = ワンダリング + エリア引力 + 群れ（seabream のみ）の合成
 ///   ・ワンダリングはサイン波ベース。フレームごとの乱数は一切使わない。
 ///
+/// パフォーマンス方針：
+///   ・各個体はフレーム先頭で自分の位置・前方を cachedPos / cachedFwd に保存する。
+///     近隣探索（回避・群れ・分離）の O(N²) ループはこのキャッシュを読むだけで、
+///     Transform のネイティブ呼び出しを完全に排除する（1フレーム遅れは boids では無視できる）。
+///   ・transform.position はフレーム中ローカル変数で扱い、最後に一度だけ書き戻す。
+///   ・水平維持の eulerAngles 変換は、実際に傾いている時だけ実行する。
+///
 /// 全 _xplus モデルの前進軸はローカル -X 固定。
 /// swim スクリプトは externalControl = true / enableLocomotion = false でアニメ専任。
 /// AquariumSceneSetup が AddComponent 後に Init() を呼ぶ。
@@ -88,15 +95,27 @@ public class FishSwimAI : MonoBehaviour
     public float  separationDist   = 1.5f;
 
     // ──────────────────────────────────────────
+    // 近隣探索用のフレームスナップショット（他個体はこれを読むだけ）
+    [System.NonSerialized] public Vector3 cachedPos;
+    [System.NonSerialized] public Vector3 cachedFwd;
+
     // 内部状態
+    Transform _tf;      // transform プロパティのルックアップを避けるキャッシュ
     float _speed;
     float _yawRate;
     float _latPhase;    // 個体ごとの位相（Init で設定）
+    float _entryTimer;  // 合流ダッシュの残り時間 (s)
+    float _entryMult = 1f; // 合流ダッシュ中の速度倍率
 
-    // 全 FishSwimAI の共有リスト（schooling 用）
+    // 全 FishSwimAI の共有リスト（近隣探索用）
     static readonly List<FishSwimAI> _all = new List<FishSwimAI>();
 
-    void Awake()   => _all.Add(this);
+    void Awake()
+    {
+        _tf = transform;
+        _all.Add(this);
+    }
+
     void OnDestroy() => _all.Remove(this);
 
     /// <summary>
@@ -108,78 +127,128 @@ public class FishSwimAI : MonoBehaviour
         _latPhase = latPhase;
     }
 
+    /// <summary>
+    /// 生成直後に呼ぶと、一定時間だけ巡航・最大速度が上がる「合流ダッシュ」。
+    /// 外側からスポーンした魚が素早く群れに泳ぎ込み、時間経過で自然に通常速度へ戻る。
+    /// </summary>
+    public void TriggerEntryDash(float duration, float speedMult)
+    {
+        _entryTimer = duration;
+        _entryMult  = Mathf.Max(1f, speedMult);
+    }
+
     void Start()
     {
         if (player == null && Camera.main != null)
             player = Camera.main.transform;
         _speed = cruiseSpeed;
+
+        // 初期スナップショット（フレーム1の近隣探索に備える）
+        cachedPos = _tf.position;
+        cachedFwd = ComputeForward();
     }
 
     void Update()
     {
         float dt = Time.deltaTime;
-        Vector3 fwd   = FishForward();
+        Transform tf = _tf;
+
+        // フレーム先頭でスナップショット取得（以降 Transform のネイティブ読みは最小化）
+        Vector3 pos = tf.position;
+        Vector3 fwd = ComputeForward();
+        cachedPos = pos;
+        cachedFwd = fwd;
+
         Vector3 right = Vector3.Cross(Vector3.up, fwd).normalized;
 
+        bool    hasPlayer = player != null;
+        Vector3 playerPos = hasPlayer ? player.position : Vector3.zero;
+
         // ─ 1. 目標方向を合成 ─
-        Vector3 desired = DesiredHeading(fwd, right);
+        Vector3 desired = DesiredHeading(pos, fwd, right, hasPlayer, playerPos);
 
         // ─ 2. ヨー旋回（角加速度付き） ─
         float yawErr    = Vector3.SignedAngle(fwd, desired, Vector3.up);
         float targetYaw = Mathf.Clamp(yawErr * 2f, -maxTurnRate, maxTurnRate);
         float yawAccel  = maxTurnRate / Mathf.Max(turnInertia, 0.001f);
         _yawRate = Mathf.MoveTowards(_yawRate, targetYaw, yawAccel * dt);
-        transform.Rotate(Vector3.up, _yawRate * dt, Space.World);
+        tf.Rotate(Vector3.up, _yawRate * dt, Space.World);
 
-        // ─ 3. ピッチ・ロールを水平に戻す（回転で傾けない — 天井飛び防止） ─
-        Vector3 e = transform.eulerAngles;
-        float ex = e.x > 180f ? e.x - 360f : e.x;
-        float ez = e.z > 180f ? e.z - 360f : e.z;
-        transform.eulerAngles = new Vector3(
-            Mathf.MoveTowards(ex, 0f, levelingSpeed * dt),
-            e.y,
-            Mathf.MoveTowards(ez, 0f, levelingSpeed * dt)
-        );
+        // 旋回後の前方を再取得（前進に使う）
+        fwd = ComputeForward();
+        cachedFwd = fwd;
 
-        // ─ 4. 高度補正（Y 位置を直接引き戻す） ─
-        if (player != null)
+        // ─ 3. 水平維持：傾いている時だけ eulerAngles 変換を行う（天井飛び防止の保険） ─
+        Vector3 worldUp = tf.rotation * Vector3.up;
+        if (worldUp.y < 0.9999f)
         {
-            float targetY = player.position.y + heightOffset;
-            float yErr    = targetY - transform.position.y;
-            float yMove   = Mathf.Clamp(yErr * 3f, -_speed * heightPullStrength, _speed * heightPullStrength);
-            Vector3 pos   = transform.position;
-            pos.y = Mathf.Clamp(pos.y + yMove * dt, targetY - verticalRange, targetY + verticalRange);
-            transform.position = pos;
+            Vector3 e = tf.eulerAngles;
+            float ex = e.x > 180f ? e.x - 360f : e.x;
+            float ez = e.z > 180f ? e.z - 360f : e.z;
+            tf.eulerAngles = new Vector3(
+                Mathf.MoveTowards(ex, 0f, levelingSpeed * dt),
+                e.y,
+                Mathf.MoveTowards(ez, 0f, levelingSpeed * dt)
+            );
+            fwd = ComputeForward();
+            cachedFwd = fwd;
         }
 
-        // ─ 5. 速度（旋回ペナルティ + 加減速） ─
+        // ─ 4. 高度補正（ローカル pos を直接引き戻す。書き戻しは最後に1回） ─
+        if (hasPlayer)
+        {
+            float targetY = playerPos.y + heightOffset;
+            float yErr    = targetY - pos.y;
+            float yMove   = Mathf.Clamp(yErr * 3f, -_speed * heightPullStrength, _speed * heightPullStrength);
+            pos.y = Mathf.Clamp(pos.y + yMove * dt, targetY - verticalRange, targetY + verticalRange);
+        }
+
+        // ─ 5. 速度（旋回ペナルティ + 加減速 + 合流ダッシュ） ─
+        float boost = 1f;
+        if (_entryTimer > 0f)
+        {
+            _entryTimer -= dt;
+            boost = _entryMult;   // タイマー終了で 1 に戻り、自然に減速していく
+        }
         float turnRatio   = Mathf.Abs(_yawRate) / Mathf.Max(maxTurnRate, 0.001f);
-        float targetSpeed = Mathf.Lerp(cruiseSpeed, minSpeed, turnRatio * turnSpeedPenalty);
-        targetSpeed = Mathf.Clamp(targetSpeed, minSpeed, maxSpeed);
+        float targetSpeed = Mathf.Lerp(cruiseSpeed, minSpeed, turnRatio * turnSpeedPenalty) * boost;
+        targetSpeed = Mathf.Clamp(targetSpeed, minSpeed, maxSpeed * boost);
         float accel = (_speed < targetSpeed) ? acceleration : deceleration;
         _speed = Mathf.MoveTowards(_speed, targetSpeed, accel * dt);
 
         // ─ 6. 前進 ─
-        transform.position += FishForward() * _speed * dt;
+        pos += fwd * (_speed * dt);
 
         // ─ 7. 位置ベース分離（ステアリングで間に合わない場合の最終防衛） ─
         // 各魚が自分を押し出す。相手も同じ処理をするので実質 0.5 ずつ分担。
         if (minFishSeparation > 0f)
         {
-            foreach (var f in _all)
+            float sepSqr = minFishSeparation * minFishSeparation;
+            for (int i = 0; i < _all.Count; i++)
             {
+                var f = _all[i];
                 if (f == this) continue;
-                Vector3 diff = transform.position - f.transform.position;
-                diff.y = 0f; // 水平のみ — Y は高度補正と競合させない
-                float dist = diff.magnitude;
-                if (dist < minFishSeparation && dist > 0.001f)
-                    transform.position += (diff / dist) * (minFishSeparation - dist) * 0.5f;
+                Vector3 fp = f.cachedPos;            // 水平のみ — Y は高度補正と競合させない
+                float dx = pos.x - fp.x;
+                float dz = pos.z - fp.z;
+                float d2 = dx * dx + dz * dz;
+                if (d2 < sepSqr && d2 > 1e-6f)
+                {
+                    float dist = Mathf.Sqrt(d2);
+                    float push = (minFishSeparation - dist) * 0.5f / dist;
+                    pos.x += dx * push;
+                    pos.z += dz * push;
+                }
             }
         }
+
+        // ─ 位置を一度だけ書き戻す ─
+        tf.position = pos;
+        cachedPos   = pos;
     }
 
     // ──────────────────────────────────────────
-    Vector3 DesiredHeading(Vector3 fwd, Vector3 right)
+    Vector3 DesiredHeading(Vector3 pos, Vector3 fwd, Vector3 right, bool hasPlayer, Vector3 playerPos)
     {
         // (a) ワンダリング：サイン波で左右にゆっくり揺れる
         float cycle = Mathf.PI * 2f / Mathf.Max(lateralPeriod, 0.001f);
@@ -188,9 +257,9 @@ public class FishSwimAI : MonoBehaviour
 
         // (b) エリア引力・反発：プレイヤーとの距離に応じたソフトな力
         Vector3 area = Vector3.zero;
-        if (player != null)
+        if (hasPlayer)
         {
-            Vector3 toPlayer = player.position - transform.position;
+            Vector3 toPlayer = playerPos - pos;
             toPlayer.y = 0f;
             float dist  = toPlayer.magnitude;
             float outer = preferredDist + distTolerance;
@@ -198,71 +267,86 @@ public class FishSwimAI : MonoBehaviour
 
             if (dist > outer)
             {
-                // 遠すぎ → プレイヤー方向へ
+                // 遠すぎ → プレイヤー方向へ（dist を再利用して normalized の sqrt を省く）
                 float w = Mathf.Clamp01((dist - outer) / preferredDist);
-                area = toPlayer.normalized * w;
+                area = toPlayer * (w / dist);
             }
             else if (dist < inner && dist > 0.01f)
             {
                 // 近すぎ → 離れる（逃げ）
                 float w = Mathf.Clamp01((inner - dist) / Mathf.Max(inner - avoidDist, 0.01f));
-                area = -toPlayer.normalized * w * 1.5f;
+                area = toPlayer * (-w * 1.5f / dist);
             }
         }
 
         // (c) 近隣回避（種を問わず全魚を対象）
-        Vector3 avoid = NeighborAvoidForce();
+        Vector3 avoid = NeighborAvoidForce(pos);
 
         // (d) 群れ（seabream 向け boids）
-        Vector3 school = schooling ? SchoolForce() : Vector3.zero;
+        Vector3 school = schooling ? SchoolForce(pos) : Vector3.zero;
 
         // 合成：回避が最優先、次にエリア・群れ、ワンダリングは基調
         Vector3 combined = wander + area * 0.8f + school * 0.6f + avoid * neighborAvoidWeight;
         return combined.sqrMagnitude > 0.001f ? combined.normalized : fwd;
     }
 
-    Vector3 NeighborAvoidForce()
+    Vector3 NeighborAvoidForce(Vector3 pos)
     {
         Vector3 sep = Vector3.zero;
-        foreach (var f in _all)
+        float rng    = neighborAvoidDist;
+        float rngSqr = rng * rng;
+
+        for (int i = 0; i < _all.Count; i++)
         {
+            var f = _all[i];
             if (f == this) continue;
-            Vector3 delta3d = f.transform.position - transform.position;
-            float dist3d = delta3d.magnitude;
-            if (dist3d > neighborAvoidDist || dist3d < 0.01f) continue;
+
+            Vector3 d = f.cachedPos - pos;
+            float dist3dSqr = d.x * d.x + d.y * d.y + d.z * d.z;
+            if (dist3dSqr > rngSqr || dist3dSqr < 1e-4f) continue;
 
             // 水平成分のみで操舵（真上/真下の魚を横に押し出さない）
-            Vector3 deltaH = new Vector3(delta3d.x, 0f, delta3d.z);
-            float distH = deltaH.magnitude;
-            if (distH < 0.01f) continue;
+            float distHSqr = d.x * d.x + d.z * d.z;
+            if (distHSqr < 1e-4f) continue;
+
+            float dist3d = Mathf.Sqrt(dist3dSqr);
+            float distH  = Mathf.Sqrt(distHSqr);
 
             // 線形減衰: 境界で 0、接触で 1 — 遠い距離から早めに押し始める
-            float w = 1f - dist3d / neighborAvoidDist;
-            sep -= (deltaH / distH) * w;
+            float k = (1f - dist3d / rng) / distH;
+            sep.x -= d.x * k;
+            sep.z -= d.z * k;
         }
         return sep;
     }
 
-    Vector3 SchoolForce()
+    Vector3 SchoolForce(Vector3 pos)
     {
         Vector3 cohesion = Vector3.zero;
         Vector3 align    = Vector3.zero;
         Vector3 sep      = Vector3.zero;
         int n = 0, sn = 0;
 
-        foreach (var f in _all)
-        {
-            if (f == this || !f.schooling) continue;
-            Vector3 delta = f.transform.position - transform.position;
-            float dist = delta.magnitude;
-            if (dist > schoolRadius) continue;
+        float radiusSqr = schoolRadius * schoolRadius;
+        float sepSqr    = separationDist * separationDist;
 
-            cohesion += f.transform.position;
-            align    += f.FishForward();
+        for (int i = 0; i < _all.Count; i++)
+        {
+            var f = _all[i];
+            if (f == this || !f.schooling) continue;
+
+            Vector3 fp    = f.cachedPos;
+            Vector3 delta = fp - pos;
+            float d2 = delta.sqrMagnitude;
+            if (d2 > radiusSqr) continue;
+
+            cohesion += fp;
+            align    += f.cachedFwd;
             n++;
 
-            if (dist < separationDist && dist > 0.01f)
+            if (d2 < sepSqr && d2 > 1e-4f)
             {
+                float dist = Mathf.Sqrt(d2);
                 sep -= (delta / dist) * (separationDist / dist);
                 sn++;
             }
@@ -271,7 +355,7 @@ public class FishSwimAI : MonoBehaviour
         Vector3 force = Vector3.zero;
         if (n > 0)
         {
-            force += (cohesion / n - transform.position).normalized * cohesionWeight;
+            force += (cohesion / n - pos).normalized * cohesionWeight;
             force += align.normalized * alignWeight;
         }
         if (sn > 0) force += sep.normalized * separationWeight;
@@ -279,7 +363,7 @@ public class FishSwimAI : MonoBehaviour
     }
 
     // ローカル -X を前進軸とする（全 _xplus モデルの統一仕様）
-    Vector3 FishForward() => transform.TransformDirection(Vector3.left).normalized;
+    Vector3 ComputeForward() => _tf.TransformDirection(Vector3.left).normalized;
 
 #if UNITY_EDITOR
     void OnDrawGizmosSelected()
@@ -289,9 +373,10 @@ public class FishSwimAI : MonoBehaviour
         Gizmos.color = new Color(0.2f, 0.9f, 0.5f, 0.3f);
         DrawWireCircle(player.position, preferredDist - distTolerance);
         DrawWireCircle(player.position, preferredDist + distTolerance);
-        // 速度ベクトル
+        // 速度ベクトル（エディタ停止中は _tf 未設定のため transform を直接使う）
         Gizmos.color = Color.cyan;
-        Gizmos.DrawRay(transform.position, FishForward() * _speed);
+        Vector3 f = transform.TransformDirection(Vector3.left).normalized;
+        Gizmos.DrawRay(transform.position, f * _speed);
     }
 
     static void DrawWireCircle(Vector3 c, float r, int seg = 48)
