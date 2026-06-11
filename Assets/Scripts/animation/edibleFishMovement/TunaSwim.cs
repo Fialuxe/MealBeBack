@@ -93,6 +93,10 @@ public class TunaSwim : MonoBehaviour
     [Tooltip("バンク（ロール）の最大角（度）。")]
     public float maxBankDeg = 30f;
 
+    [Header("外部制御")]
+    [Tooltip("ON にすると移動・旋回を止め、ボーンアニメだけ実行します。FishOrbitMover と組み合わせて使います。")]
+    public bool externalControl = false;
+
     [Header("遊泳エリア（任意・球状の囲い）")]
     public bool useBounds = false;
     public float boundsRadius = 30f;
@@ -231,8 +235,11 @@ public class TunaSwim : MonoBehaviour
     {
         float dt = Time.deltaTime;
 
-        UpdateSteering(dt);
-        UpdateLocomotion(dt);
+        if (!externalControl)
+        {
+            UpdateSteering(dt);
+            UpdateLocomotion(dt);
+        }
         UpdateBodyWave();
         UpdateFins();
     }

@@ -9,6 +9,18 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: -3910990755373119420, guid: 3f609684e06c3154d821614adb81544f, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 3f609684e06c3154d821614adb81544f, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 3f609684e06c3154d821614adb81544f, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.1
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 3f609684e06c3154d821614adb81544f, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
       objectReference: {fileID: 0}
@@ -128,6 +140,7 @@ MonoBehaviour:
   pitchBob: 4
   verticalBob: 0.04
   bobFrequency: 0.5
+  externalControl: 0
   useBounds: 0
   boundsCenter: {x: 0, y: 0, z: 0}
   boundsSize: {x: 20, y: 6, z: 20}
