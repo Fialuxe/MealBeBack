@@ -1,0 +1,141 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &3125745590913873070
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8771091787928289351, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_Name
+      value: tuna_rigged_xplus
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 8771091787928289351, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2475702901728245776}
+  m_SourcePrefab: {fileID: -4161369568681901532, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+--- !u!1 &5970027697007883497 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8771091787928289351, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+  m_PrefabInstance: {fileID: 3125745590913873070}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &2475702901728245776
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5970027697007883497}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 737e0a2aa6302a6488161cb8be1f99d3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  forwardAxis: {x: -1, y: 0, z: 0}
+  upAxis: {x: 0, y: 1, z: 0}
+  spineBones: []
+  caudalBones: []
+  pectoralBones: []
+  cruiseSpeed: 3
+  speedVariation: 0.25
+  speedSmoothing: 1.5
+  baseBeatFrequency: 1.2
+  beatFreqPerSpeed: 0.25
+  bodyAmplitudeDeg: 9
+  amplitudeAlongBody:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0.05
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.5
+      value: 0.35
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  phaseOffsetPerBone: 0.55
+  amplitudeSpeedGain: 0.35
+  animateCaudal: 1
+  caudalAmplitudeDeg: 7
+  caudalPhaseLag: 0.5
+  animatePectoral: 1
+  pectoralAmplitudeDeg: 8
+  pectoralFrequency: 0.7
+  wander: 0
+  maxYawRate: 35
+  maxPitchRate: 18
+  wanderFrequency: 0.15
+  pitchLevelStrength: 0.6
+  bankFactor: 0.6
+  maxBankDeg: 30
+  useBounds: 0
+  boundsRadius: 30
+  boundsSoftEdge: 0.7
