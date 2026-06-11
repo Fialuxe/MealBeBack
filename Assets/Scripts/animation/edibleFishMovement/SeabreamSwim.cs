@@ -70,6 +70,10 @@ public class SeabreamSwim : MonoBehaviour
     public float verticalBob = 0.04f; // 上下動の量(m)
     public float bobFrequency = 0.5f;
 
+    [Header("外部制御")]
+    [Tooltip("ON にすると移動・旋回を止め、ボーンアニメだけ実行します。FishOrbitMover と組み合わせて使います。")]
+    public bool externalControl = false;
+
     [Header("遊泳範囲 (任意)")]
     [Tooltip("ONにすると box の中に留まり、端で中心へ戻ろうとする。水槽向け。")]
     public bool useBounds = false;
@@ -162,8 +166,11 @@ public class SeabreamSwim : MonoBehaviour
         float dt = Time.deltaTime;
         _phaseTime += dt * beatFrequency;
 
-        UpdateSteering(dt);
-        MoveForward(dt);
+        if (!externalControl)
+        {
+            UpdateSteering(dt);
+            MoveForward(dt);
+        }
     }
 
     void UpdateSteering(float dt)

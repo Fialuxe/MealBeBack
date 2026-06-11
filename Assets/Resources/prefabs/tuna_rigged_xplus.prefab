@@ -9,6 +9,18 @@ PrefabInstance:
     m_TransformParent: {fileID: 0}
     m_Modifications:
     - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.2
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.2
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.2
+      objectReference: {fileID: 0}
+    - target: {fileID: -3910990755373119420, guid: 88d26467f3a7b4d40902acfd68cb2562, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
       objectReference: {fileID: 0}
@@ -136,6 +148,8 @@ MonoBehaviour:
   pitchLevelStrength: 0.6
   bankFactor: 0.6
   maxBankDeg: 30
+  externalControl: 0
   useBounds: 0
   boundsRadius: 30
   boundsSoftEdge: 0.7
+  boundsCenter: {x: 0, y: 0, z: 0}

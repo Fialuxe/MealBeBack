@@ -1,0 +1,98 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &3972729276147700535
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1141730626605274242}
+  - component: {fileID: 1379519784552873239}
+  m_Layer: 0
+  m_Name: AquariumManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1141730626605274242
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3972729276147700535}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.056220543, y: -4.3002396, z: 5.3349175}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1379519784552873239
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3972729276147700535}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f10be08c977a984880350704cc93ecd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  player: {fileID: 0}
+  seabream:
+    prefabPath: prefabs/seabream_rigged_xplus
+    count: 10
+    cruiseSpeed: 0.8
+    maxSpeed: 2.2
+    minSpeed: 0.15
+    acceleration: 0.6
+    deceleration: 0.4
+    turnSpeedPenalty: 0.5
+    maxTurnRate: 45
+    turnInertia: 0.2
+    preferredDist: 5
+    distTolerance: 2
+    heightOffset: 1
+    lateralAmp: 0.3
+    lateralPeriod: 9
+    schooling: 1
+  bluefin:
+    prefabPath: prefabs/bluefin_rigged_xplus
+    count: 10
+    cruiseSpeed: 2
+    maxSpeed: 5
+    minSpeed: 0.5
+    acceleration: 1.8
+    deceleration: 1
+    turnSpeedPenalty: 0.6
+    maxTurnRate: 22
+    turnInertia: 0.55
+    preferredDist: 11
+    distTolerance: 3.5
+    heightOffset: 5
+    lateralAmp: 0.18
+    lateralPeriod: 18
+    schooling: 0
+  tuna:
+    prefabPath: prefabs/tuna_rigged_xplus
+    count: 10
+    cruiseSpeed: 1.5
+    maxSpeed: 4
+    minSpeed: 0.4
+    acceleration: 1.4
+    deceleration: 0.8
+    turnSpeedPenalty: 0.55
+    maxTurnRate: 28
+    turnInertia: 0.4
+    preferredDist: 9
+    distTolerance: 3
+    heightOffset: 8
+    lateralAmp: 0.2
+    lateralPeriod: 14
+    schooling: 0

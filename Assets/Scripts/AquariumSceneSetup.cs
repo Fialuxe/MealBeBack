@@ -1,201 +1,217 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Spawns fish prefabs from Resources/ and configures each swim script so every
-/// fish moves naturally inside a shared aquarium volume.
+/// 魚プレハブをスポーンし、FishSwimAI で種別ごとのパラメータを設定する。
 ///
-/// Usage: attach to any empty GameObject in the scene (e.g. "AquariumManager").
-/// All fish become children of that object.
+///   鯛  (seabream)  — 近距離・俊敏・群れ泳ぎ
+///   マグロ (bluefin) — 遠距離・高速・大きなカーブ
+///   ツナ  (tuna)    — 中遠距離・中速
+///
+/// 空の GameObject に付けて Player を設定するだけで動く。
 /// </summary>
 public class AquariumSceneSetup : MonoBehaviour
 {
     [System.Serializable]
-    public class FishSchool
+    public class FishConfig
     {
-        [Tooltip("Path inside Resources/ (no extension, no leading slash).")]
+        [Tooltip("Resources/ 以下のパス（拡張子なし）。")]
         public string prefabPath;
-        [Min(0)] public int count = 4;
-        [Tooltip("Multiplied onto each fish's base swim speed. Add slight variation per fish automatically.")]
-        [Range(0.3f, 3f)] public float speedMultiplier = 1f;
-        [Tooltip("Vertical placement: 0 = near bottom, 1 = near surface. Different species at different depths look natural.")]
-        [Range(0f, 1f)] public float depthBias = 0.5f;
+        [Min(1)] public int count = 4;
+
+        [Header("速度")]
+        [Tooltip("巡航速度 (m/s)")]
+        public float cruiseSpeed  = 1.2f;
+        [Tooltip("最大速度 (m/s)")]
+        public float maxSpeed     = 3.0f;
+        [Tooltip("最低速度 (m/s)")]
+        public float minSpeed     = 0.2f;
+        [Tooltip("加速度 (m/s²)")]
+        public float acceleration = 1.0f;
+        [Tooltip("減速度 (m/s²)")]
+        public float deceleration = 0.7f;
+        [Tooltip("旋回中の速度低下係数")]
+        [Range(0f, 1f)] public float turnSpeedPenalty = 0.55f;
+
+        [Header("旋回")]
+        [Tooltip("最大旋回角速度 (deg/s)")]
+        public float maxTurnRate  = 40f;
+        [Tooltip("旋回慣性時定数 (s)")]
+        public float turnInertia  = 0.3f;
+
+        [Header("エリア")]
+        [Tooltip("プレイヤーから好む距離 (m)")]
+        public float preferredDist  = 7f;
+        [Tooltip("許容幅 (±m)")]
+        public float distTolerance  = 3f;
+        [Tooltip("好みの高度オフセット (m)")]
+        public float heightOffset   = 0f;
+
+        [Header("ワンダリング")]
+        [Tooltip("左右揺れの強さ (0–0.8)")]
+        [Range(0f, 0.8f)] public float lateralAmp = 0.25f;
+        [Tooltip("揺れの半周期 (s)")]
+        public float lateralPeriod = 12f;
+
+        [Header("群れ")]
+        public bool schooling = false;
     }
 
-    // ---------------------------------------------------------------
-    [Header("Species")]
-    public FishSchool bluefin = new FishSchool
+    // ─────────────────────────────────────────────
+    [Header("プレイヤー")]
+    [Tooltip("空のとき Camera.main を自動使用。")]
+    public Transform player;
+
+    [Header("種別")]
+    // 鯛: 近距離・小型。慣性はそれほど大きくないが、頻繁には向き変えしない。
+    public FishConfig seabream = new FishConfig
     {
-        prefabPath = "prefabs/bluefin_rigged_xplus",
-        count = 3, speedMultiplier = 1.1f, depthBias = 0.50f
-    };
-    public FishSchool seabream = new FishSchool
-    {
-        prefabPath = "prefabs/seabream_rigged_xplus",
-        count = 6, speedMultiplier = 0.85f, depthBias = 0.65f
-    };
-    public FishSchool tuna = new FishSchool
-    {
-        prefabPath = "prefabs/tuna_rigged_xplus",
-        count = 2, speedMultiplier = 1.25f, depthBias = 0.42f
+        prefabPath    = "prefabs/seabream_rigged_xplus",
+        count         = 6,
+        cruiseSpeed   = 0.8f,   maxSpeed  = 2.2f,   minSpeed     = 0.15f,
+        acceleration  = 0.6f,   deceleration = 0.4f, turnSpeedPenalty = 0.45f,
+        maxTurnRate   = 20f,    turnInertia  = 0.6f,
+        preferredDist = 5f,     distTolerance = 2f,   heightOffset = 0f,
+        lateralAmp    = 0.12f,  lateralPeriod = 18f,
+        schooling     = true
     };
 
-    // ---------------------------------------------------------------
-    [Header("Aquarium Volume")]
-    [Tooltip("World-space center of the swim volume.")]
-    public Vector3 aquariumCenter = Vector3.zero;
-    [Tooltip("Full extent of the swim volume (X width, Y height, Z depth).")]
-    public Vector3 aquariumSize = new Vector3(28f, 8f, 28f);
-    [Tooltip("Fish begin steering away from the boundary this many units before reaching it.")]
-    [Min(0.5f)] public float softMargin = 4f;
+    // マグロ: 遠距離・大型・高速。大きな魚体のため旋回慣性が大きい。
+    public FishConfig bluefin = new FishConfig
+    {
+        prefabPath    = "prefabs/bluefin_rigged_xplus",
+        count         = 3,
+        cruiseSpeed   = 2.0f,   maxSpeed  = 5.0f,   minSpeed     = 0.5f,
+        acceleration  = 1.8f,   deceleration = 1.0f, turnSpeedPenalty = 0.55f,
+        maxTurnRate   = 12f,    turnInertia  = 1.2f,
+        preferredDist = 11f,    distTolerance = 3.5f, heightOffset = -0.5f,
+        lateralAmp    = 0.06f,  lateralPeriod = 32f,
+        schooling     = false
+    };
 
-    // ---------------------------------------------------------------
-    [Header("Spawn")]
-    [Tooltip("Minimum world-space gap between any two fish at spawn time.")]
-    [Min(0.5f)] public float minSeparation = 2.5f;
+    // ツナ: 中遠距離・中速。
+    public FishConfig tuna = new FishConfig
+    {
+        prefabPath    = "prefabs/tuna_rigged_xplus",
+        count         = 2,
+        cruiseSpeed   = 1.5f,   maxSpeed  = 4.0f,   minSpeed     = 0.4f,
+        acceleration  = 1.4f,   deceleration = 0.8f, turnSpeedPenalty = 0.5f,
+        maxTurnRate   = 15f,    turnInertia  = 0.9f,
+        preferredDist = 9f,     distTolerance = 3f,   heightOffset = 0.5f,
+        lateralAmp    = 0.08f,  lateralPeriod = 24f,
+        schooling     = false
+    };
 
-    // ---------------------------------------------------------------
-    readonly List<Vector3> _placed = new List<Vector3>();
+    // ─────────────────────────────────────────────
+    void Awake()
+    {
+        if (player == null && Camera.main != null)
+            player = Camera.main.transform;
+    }
 
     void Start()
     {
-        SpawnSchool(bluefin);
-        SpawnSchool(seabream);
-        SpawnSchool(tuna);
-        _placed.Clear();
+        SpawnSpecies(seabream);
+        SpawnSpecies(bluefin);
+        SpawnSpecies(tuna);
     }
 
-    // ---------------------------------------------------------------
-    void SpawnSchool(FishSchool school)
+    // ─────────────────────────────────────────────
+    void SpawnSpecies(FishConfig cfg)
     {
-        if (string.IsNullOrEmpty(school.prefabPath)) return;
-
-        var prefab = Resources.Load<GameObject>(school.prefabPath);
+        var prefab = Resources.Load<GameObject>(cfg.prefabPath);
         if (prefab == null)
         {
-            Debug.LogWarning($"[AquariumSceneSetup] Resources/{school.prefabPath} not found.", this);
+            Debug.LogWarning($"[AquariumSceneSetup] Resources/{cfg.prefabPath} が見つかりません。", this);
             return;
         }
 
-        for (int i = 0; i < school.count; i++)
+        Vector3 origin = player != null ? player.position : Vector3.zero;
+
+        for (int i = 0; i < cfg.count; i++)
         {
-            Vector3 pos = PickPosition(school.depthBias);
-            _placed.Add(pos);
-
-            float yaw = Random.Range(0f, 360f);
-            var go = Instantiate(prefab, pos, Quaternion.Euler(0f, yaw, 0f), transform);
-            go.name = $"{prefab.name}_{i:00}";
-
-            Configure(go, school);
-        }
-    }
-
-    void Configure(GameObject fish, FishSchool school)
-    {
-        // Per-fish speed jitter keeps a school from looking like a chorus line.
-        float speedJitter = Random.Range(0.88f, 1.12f);
-        Vector3 innerSize = aquariumSize - Vector3.one * (softMargin * 2f);
-        float sphereRadius = Mathf.Min(aquariumSize.x, aquariumSize.z) * 0.5f - softMargin;
-
-        // --- Bluefin ---
-        var bf = fish.GetComponent<BluefinSwim>();
-        if (bf != null)
-        {
-            bf.swimSpeed *= school.speedMultiplier * speedJitter;
-            bf.maxTurnSpeed += Random.Range(-5f, 5f);
-            bf.enableWander = true;
-
-            // BluefinSwim has no built-in bounds; BoundsKeeper provides it.
-            var keeper = fish.AddComponent<BoundsKeeper>();
-            keeper.boundsCenter = aquariumCenter;
-            keeper.boundsSize = aquariumSize;
-            // softEdgeFraction = softMargin / half-width
-            keeper.softEdgeFraction = Mathf.Clamp01(softMargin / (aquariumSize.x * 0.5f));
-            return;
-        }
-
-        // --- Seabream ---
-        var sb = fish.GetComponent<SeabreamSwim>();
-        if (sb != null)
-        {
-            sb.swimSpeed *= school.speedMultiplier * speedJitter;
-            // Slight beat-frequency variation desynchronises a school of seabream.
-            sb.beatFrequency *= Random.Range(0.92f, 1.08f);
-            sb.turnAmount += Random.Range(-4f, 4f);
-            sb.useBounds = true;
-            sb.boundsCenter = aquariumCenter;
-            sb.boundsSize = innerSize;
-            sb.boundsMargin = softMargin * 0.5f;
-            return;
-        }
-
-        // --- Tuna ---
-        var tn = fish.GetComponent<TunaSwim>();
-        if (tn != null)
-        {
-            tn.cruiseSpeed *= school.speedMultiplier * speedJitter;
-            tn.baseBeatFrequency *= Random.Range(0.90f, 1.10f);
-            tn.wander = true;
-            tn.useBounds = true;
-            tn.boundsCenter = aquariumCenter;   // public field exposed for setup
-            tn.boundsRadius = sphereRadius;
-            return;
-        }
-
-        // --- Squid (fallback) ---
-        var squid = fish.GetComponent<SquidSwimAnimator>();
-        if (squid != null)
-        {
-            squid.speed *= school.speedMultiplier * speedJitter;
-        }
-    }
-
-    // ---------------------------------------------------------------
-    Vector3 PickPosition(float depthBias)
-    {
-        Vector3 half = aquariumSize * 0.5f;
-        float yBottom = aquariumCenter.y - half.y * 0.85f;
-        float yTop    = aquariumCenter.y + half.y * 0.85f;
-        float yCenter = Mathf.Lerp(yBottom, yTop, depthBias);
-        float yRange  = half.y * 0.20f;
-
-        for (int attempt = 0; attempt < 50; attempt++)
-        {
-            var candidate = new Vector3(
-                aquariumCenter.x + Random.Range(-half.x * 0.80f, half.x * 0.80f),
-                Mathf.Clamp(yCenter + Random.Range(-yRange, yRange), yBottom, yTop),
-                aquariumCenter.z + Random.Range(-half.z * 0.80f, half.z * 0.80f)
+            // 好み距離付近にランダム配置（円弧上ではなく散在させる）
+            float angle = Random.Range(0f, Mathf.PI * 2f);
+            float dist  = cfg.preferredDist + Random.Range(-cfg.distTolerance * 0.5f, cfg.distTolerance * 0.5f);
+            Vector3 spawnPos = new Vector3(
+                origin.x + Mathf.Cos(angle) * dist,
+                origin.y + cfg.heightOffset + Random.Range(-1.0f, 1.0f),
+                origin.z + Mathf.Sin(angle) * dist
             );
 
-            bool tooClose = false;
-            foreach (var p in _placed)
-            {
-                if (Vector3.Distance(candidate, p) < minSeparation)
-                {
-                    tooClose = true;
-                    break;
-                }
-            }
-            if (!tooClose) return candidate;
-        }
+            // 最初から進行方向を向かせる（ランダムな接線方向）
+            float faceAngle = angle + Mathf.PI * 0.5f + Random.Range(-0.3f, 0.3f);
+            Vector3 facingDir = new Vector3(-Mathf.Sin(faceAngle), 0f, Mathf.Cos(faceAngle));
+            float yaw = Mathf.Atan2(facingDir.z, -facingDir.x) * Mathf.Rad2Deg;
 
-        // Fallback: accept any random position if separation couldn't be satisfied.
-        return new Vector3(
-            aquariumCenter.x + Random.Range(-half.x * 0.80f, half.x * 0.80f),
-            yCenter,
-            aquariumCenter.z + Random.Range(-half.z * 0.80f, half.z * 0.80f));
+            var go = Instantiate(prefab, spawnPos, Quaternion.Euler(0f, yaw, 0f), transform);
+            go.name = $"{prefab.name}_{i:00}";
+            Configure(go, cfg, i);
+        }
     }
 
-    // ---------------------------------------------------------------
+    void Configure(GameObject fish, FishConfig cfg, int index)
+    {
+        // FishSwimAI を追加・設定
+        var ai = fish.AddComponent<FishSwimAI>();
+        ai.player          = player;
+        ai.cruiseSpeed     = cfg.cruiseSpeed;
+        ai.maxSpeed        = cfg.maxSpeed;
+        ai.minSpeed        = cfg.minSpeed;
+        ai.acceleration    = cfg.acceleration;
+        ai.deceleration    = cfg.deceleration;
+        ai.turnSpeedPenalty = cfg.turnSpeedPenalty;
+        ai.maxTurnRate     = cfg.maxTurnRate;
+        ai.turnInertia     = cfg.turnInertia;
+        ai.levelingSpeed      = 45f;
+        ai.heightPullStrength = 0.35f;
+        ai.preferredDist      = cfg.preferredDist;
+        ai.distTolerance   = cfg.distTolerance;
+        ai.avoidDist       = 2f;
+        ai.heightOffset    = cfg.heightOffset;
+        ai.verticalRange   = 2f;
+        ai.lateralAmp      = cfg.lateralAmp;
+        ai.lateralPeriod   = cfg.lateralPeriod;
+        ai.schooling       = cfg.schooling;
+
+        // 種ごとの最小間隔（魚体サイズに合わせる）
+        bool isBluefin = cfg.prefabPath.Contains("bluefin");
+        bool isTuna    = cfg.prefabPath.Contains("tuna");
+        ai.minFishSeparation = isBluefin ? 2.2f : isTuna ? 1.6f : 1.0f;
+
+        // 個体ごとにワンダリング位相をずらす（無理数倍で同期を防ぐ）
+        ai.Init(index * 1.618f);
+
+        // swim スクリプト：移動・旋回を停止し、ボーンアニメのみ残す
+        var bf = fish.GetComponent<BluefinSwim>();
+        if (bf != null) { bf.enableLocomotion = false; bf.enableWander = false; return; }
+
+        var sb = fish.GetComponent<SeabreamSwim>();
+        if (sb != null) { sb.externalControl = true; return; }
+
+        var tn = fish.GetComponent<TunaSwim>();
+        if (tn != null) { tn.externalControl = true; return; }
+    }
+
+    // ─────────────────────────────────────────────
     void OnDrawGizmosSelected()
     {
-        Gizmos.color = new Color(0.1f, 0.55f, 1f, 0.08f);
-        Gizmos.DrawCube(aquariumCenter, aquariumSize);
-        Gizmos.color = new Color(0.1f, 0.55f, 1f, 0.45f);
-        Gizmos.DrawWireCube(aquariumCenter, aquariumSize);
+        if (player == null) return;
+        DrawRing(player.position, seabream.preferredDist, new Color(0.5f, 0.9f, 1f,  0.4f));
+        DrawRing(player.position, bluefin.preferredDist,  new Color(0.2f, 0.5f, 1f,  0.4f));
+        DrawRing(player.position, tuna.preferredDist,     new Color(0.1f, 0.3f, 0.9f, 0.4f));
+    }
 
-        // Inner "soft" boundary
-        Gizmos.color = new Color(0.1f, 0.9f, 0.5f, 0.25f);
-        Gizmos.DrawWireCube(aquariumCenter, aquariumSize - Vector3.one * softMargin * 2f);
+    static void DrawRing(Vector3 c, float r, Color col, int seg = 48)
+    {
+        Gizmos.color = col;
+        float s = Mathf.PI * 2f / seg;
+        Vector3 prev = c + new Vector3(r, 0f, 0f);
+        for (int i = 1; i <= seg; i++)
+        {
+            float a = i * s;
+            Vector3 next = c + new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
+            Gizmos.DrawLine(prev, next);
+            prev = next;
+        }
     }
 }
