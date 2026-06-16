@@ -23,7 +23,7 @@
 using UnityEngine;
 
 [DisallowMultipleComponent]
-[AddComponentMenu("Fish/Alaska Pollok Controller")]
+[AddComponentMenu("Fish/Fish Swim Controller")]
 public class AlaskaPollokController : MonoBehaviour
 {
     // =====================================================================
@@ -280,6 +280,15 @@ public class AlaskaPollokController : MonoBehaviour
     /// <summary>手動ロールを絶対値で設定する [deg]。</summary>
     public void SetRoll(float rollDegrees) => _manualRoll = rollDegrees;
 
+    /// <summary>ロールを瞬間的に設定する [deg]（なめらか追従を挟まない）。
+    /// 横倒しでスポーンさせる等に使う。</summary>
+    public void SetRollImmediate(float rollDegrees)
+    {
+        _manualRoll = rollDegrees;
+        _roll = rollDegrees;
+        _rollVel = 0f;
+    }
+
     // ---- 目的地・経路 ---------------------------------------------------
 
     /// <summary>指定ワールド地点へ泳いでいく。近づくと自動で減速・停止する。</summary>
@@ -299,6 +308,44 @@ public class AlaskaPollokController : MonoBehaviour
     /// <summary>自律徘徊の ON/OFF。</summary>
     public void SetWandering(bool enabled) => wander = enabled;
 
+    // ---- スポーン / 瞬間配置・徘徊制御（登場演出用） -------------------
+
+    /// <summary>位置と向き(ヨー/ピッチ)を瞬間的に設定する。
+    /// なめらかな追従を挟まず即反映するのでスポーン時に使う。</summary>
+    public void SnapTo(Vector3 position, float headingDegrees, float pitchDegrees = 0f)
+    {
+        transform.position = position;
+        _heading = _targetHeading = headingDegrees;
+        _pitch   = _targetPitch   = Mathf.Clamp(pitchDegrees, -maxPitchAngle, maxPitchAngle);
+        _roll = _manualRoll = 0f;
+        _headingVel = _pitchVel = _rollVel = _speedVel = 0f;
+        _yawRateActual = 0f;
+        transform.rotation = Quaternion.Euler(_pitch, _heading, _roll);
+        _manualTimer = manualOverrideDuration; // 直後は徘徊させない
+    }
+
+    /// <summary>向き(ヨー)だけを瞬間設定する。</summary>
+    public void SnapHeading(float headingDegrees) => SnapTo(transform.position, headingDegrees, _pitch);
+
+    /// <summary>遊泳範囲の中心をワールド座標で設定し直す。</summary>
+    public void SetBoundsCenter(Vector3 worldCenter) => _boundsWorldCenter = worldCenter;
+
+    /// <summary>現在位置を遊泳範囲の中心にする。</summary>
+    public void RecenterBoundsHere() => _boundsWorldCenter = transform.position + boundsCenterOffset;
+
+    /// <summary>外部操作による徘徊抑制を即解除する（すぐ徘徊を再開させたいとき）。</summary>
+    public void ClearManualOverride() => _manualTimer = 0f;
+
+    /// <summary>ワールド空間のドリフト速度を設定する [m/s]。
+    /// 体の向きと無関係に位置を流す（例: 横向きのまま前へ押し出す登場演出、水流など）。</summary>
+    public void SetDriftVelocity(Vector3 worldVelocity) => _externalVelocity = worldVelocity;
+
+    /// <summary>ドリフト速度を解除する。</summary>
+    public void ClearDrift() => _externalVelocity = Vector3.zero;
+
+    /// <summary>現在のドリフト速度 [m/s]（読み取り専用）。</summary>
+    public Vector3 DriftVelocity => _externalVelocity;
+
     #endregion
     // =====================================================================
     //  ▲▲▲  公開API ここまで  ▲▲▲
@@ -314,6 +361,9 @@ public class AlaskaPollokController : MonoBehaviour
     float _pitch, _targetPitch, _pitchVel;
     float _roll, _manualRoll, _rollVel;
     float _yawRateActual;
+
+    // ワールド空間の追加速度(ドリフト/漂流/ストレイフ)。向きとは独立に位置を流す。
+    Vector3 _externalVelocity;
 
     // 速度
     float _currentSpeed, _targetSpeed, _speedVel;
@@ -521,7 +571,10 @@ public class AlaskaPollokController : MonoBehaviour
         // 合成して適用：Euler(pitch=X, heading=Y, roll=Z)。
         // Z(ロール)は前方+Z まわりの回転なので forward を変えない＝進路に影響しない。
         transform.rotation = Quaternion.Euler(_pitch, _heading, _roll);
-        transform.position += transform.forward * _currentSpeed * dt;
+        // 自走(前方) + 外部ドリフト(ワールド空間)。
+        // ドリフトは「体の向きと無関係に押し流す」用途。登場演出で
+        // “体は横向きのまま前へ滑り出す”といった分離した動きを作れる。
+        transform.position += (transform.forward * _currentSpeed + _externalVelocity) * dt;
     }
     #endregion
 
@@ -646,7 +699,7 @@ public class AlaskaPollokController : MonoBehaviour
         }
         if (pecs.Count > 0) pectoralBones = pecs.ToArray();
 
-        Debug.Log($"[FishSwimController] 背骨 {spine.Count} 本 / 胸びれ {pecs.Count} 本 を検出しました。", this);
+        Debug.Log($"[AlaskaPollokController] 背骨 {spine.Count} 本 / 胸びれ {pecs.Count} 本 を検出しました。", this);
     }
 
     static Transform FindDeep(Transform root, string name)
