@@ -71,5 +71,134 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 6635245195314443262, guid: 38b1a0b3a9108e04781aa177a51b00a3, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 8073913253265801487}
   m_SourcePrefab: {fileID: -4161369568681901532, guid: 38b1a0b3a9108e04781aa177a51b00a3, type: 3}
+--- !u!1 &3394712524615053027 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 6635245195314443262, guid: 38b1a0b3a9108e04781aa177a51b00a3, type: 3}
+  m_PrefabInstance: {fileID: 8289246025410567453}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &8073913253265801487
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3394712524615053027}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc95db6e519feb342bc624b2df244ee0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cruiseSpeed: 0.35
+  maxSpeed: 0.9
+  accelerationSmoothTime: 0.6
+  maxYawRate: 90
+  maxPitchRate: 45
+  maxPitchAngle: 45
+  turnSmoothTime: 0.5
+  autoBank: 1
+  maxBankAngle: 25
+  bankSmoothTime: 0.4
+  bankSign: 1
+  wander: 1
+  wanderYawRate: 35
+  wanderPitchRange: 12
+  wanderNoiseSpeed: 0.25
+  wanderMinSpeed: 0.15
+  wanderMaxSpeed: 0.5
+  manualOverrideDuration: 3
+  useBounds: 1
+  boundsCenterOffset: {x: 0, y: 0, z: 0}
+  boundsSize: {x: 6, y: 3, z: 6}
+  boundsMargin: 1.2
+  avoidObstacles: 0
+  obstacleMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  avoidDistance: 1
+  avoidRadius: 0.2
+  spineBones:
+  - {fileID: 7028388046163066152}
+  - {fileID: 4450781005001082097}
+  - {fileID: 8823535636328442286}
+  - {fileID: 3453941459397470623}
+  amplitudeAlongBody:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0.15
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.6
+      value: 0.45
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  idleBeatAmplitude: 4
+  maxBeatAmplitude: 16
+  idleBeatFrequency: 0.8
+  maxBeatFrequency: 3
+  phaseLagAlongBody: 1.4
+  turnBodyCurvature: 10
+  bendSign: 1
+  pectoralBones:
+  - {fileID: 5835504799849902435}
+  - {fileID: 9146466663985553942}
+  pectoralFrequency: 1.5
+  pectoralAmplitude: 8
+  drawGizmos: 1
+--- !u!4 &3453941459397470623 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 6694473451484951682, guid: 38b1a0b3a9108e04781aa177a51b00a3, type: 3}
+  m_PrefabInstance: {fileID: 8289246025410567453}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &4450781005001082097 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 5678204504828221932, guid: 38b1a0b3a9108e04781aa177a51b00a3, type: 3}
+  m_PrefabInstance: {fileID: 8289246025410567453}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &5835504799849902435 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 2590328333204565118, guid: 38b1a0b3a9108e04781aa177a51b00a3, type: 3}
+  m_PrefabInstance: {fileID: 8289246025410567453}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &7028388046163066152 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1333216016012730421, guid: 38b1a0b3a9108e04781aa177a51b00a3, type: 3}
+  m_PrefabInstance: {fileID: 8289246025410567453}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &8823535636328442286 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: -8540461250227653453, guid: 38b1a0b3a9108e04781aa177a51b00a3, type: 3}
+  m_PrefabInstance: {fileID: 8289246025410567453}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &9146466663985553942 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1001936220133392139, guid: 38b1a0b3a9108e04781aa177a51b00a3, type: 3}
+  m_PrefabInstance: {fileID: 8289246025410567453}
+  m_PrefabAsset: {fileID: 0}
