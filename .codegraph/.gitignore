@@ -12,5 +12,8 @@ cache/
 # Logs
 *.log
 
+# Daemon runtime state (PID, socket path — local to each machine)
+*.pid
+
 # Hook markers
 .dirty
