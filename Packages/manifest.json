@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.htc.upm.vive.openxr": "file:com.htc.upm.vive.openxr",
     "com.meta.xr.mrutilitykit": "201.0.0",
     "com.meta.xr.sdk.all": "201.0.0",
     "com.unity.ai.navigation": "2.0.12",

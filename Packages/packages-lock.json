@@ -1,5 +1,16 @@
 {
   "dependencies": {
+    "com.htc.upm.vive.openxr": {
+      "version": "file:com.htc.upm.vive.openxr",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.xr.management": "4.2.1",
+        "com.unity.inputsystem": "1.7.0",
+        "com.unity.xr.openxr": "1.12.1",
+        "com.unity.xr.interaction.toolkit": "2.5.4"
+      }
+    },
     "com.meta.xr.mrutilitykit": {
       "version": "201.0.0",
       "depth": 0,
