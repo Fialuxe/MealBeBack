@@ -14,7 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   Keys: 0100000007000000
   Values:
-  - featureSets: []
-  - featureSets: []
+  - featureSets:
+    - com.htc.vive.openxr.featureset.vivexr
+  - featureSets:
+    - com.htc.vive.openxr.featureset.vivexr
   m_vulkanAdditionalGraphicsQueue: 0
   m_vulkanOffscreenSwapchainNoMainDisplay: 1
