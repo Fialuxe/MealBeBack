@@ -72,7 +72,7 @@ public class SetupSceneController : MonoBehaviour
             return;
 
         preparationText.text =
-            "\n\n準備中です\n\n" +
+            "準備中です\n" +
             "そのままお待ちください";
     }
 
@@ -82,7 +82,7 @@ public class SetupSceneController : MonoBehaviour
             return;
 
         preparationText.text =
-            "\n\n机の上面に指先を触れてください\n\n" +
+            "机の上面に手のひらを触れてください\n" +
             "そのまま姿勢を保ってください";
     }
 
@@ -92,7 +92,7 @@ public class SetupSceneController : MonoBehaviour
             return;
 
         preparationText.text =
-            "\n\n正面を向いてください\n\n" +
+            "正面を向いてください\n" +
             "そのまま姿勢を保ってください";
     }
 
