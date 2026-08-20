@@ -653,6 +653,10 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2425995730377915279, guid: daa3547347461344c9adec53e2172fbb, type: 3}
+      propertyPath: gameSceneName
+      value: WaterScene_SteamRuntime
+      objectReference: {fileID: 0}
+    - target: {fileID: 2425995730377915279, guid: daa3547347461344c9adec53e2172fbb, type: 3}
       propertyPath: headTransform
       value: 
       objectReference: {fileID: 0}
