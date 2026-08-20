@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.htc.upm.vive.openxr": "file:com.htc.upm.vive.openxr",
     "com.meta.xr.mrutilitykit": "201.0.0",
     "com.meta.xr.sdk.all": "201.0.0",
     "com.unity.2d.sprite": "1.0.0",
@@ -15,6 +16,7 @@
     "com.unity.timeline": "1.8.12",
     "com.unity.ugui": "2.0.0",
     "com.unity.visualscripting": "1.9.11",
+    "com.unity.xr.interaction.toolkit": "3.6.0",
     "com.unity.xr.openxr": "1.16.1",
     "com.unity.modules.accessibility": "1.0.0",
     "com.unity.modules.ai": "1.0.0",
