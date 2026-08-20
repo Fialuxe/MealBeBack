@@ -79,6 +79,7 @@ MonoBehaviour:
   m_Name: DetachedMetaQuestTouchPlusControllerProfile Android
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Detached Meta Quest Touch Plus Controller Profile
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.input.metaquestplus.detached
@@ -190,6 +191,7 @@ MonoBehaviour:
   m_Name: DetachedOculusTouchControllerProfile Android
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Detached Oculus Touch Controller Profile
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.input.oculustouch.detached
@@ -236,6 +238,7 @@ MonoBehaviour:
   m_Name: MetaXRSubsampledLayout Android
   m_EditorClassIdentifier: 
   m_enabled: 1
+  <failedInitialization>k__BackingField: 0
   nameUi: Meta XR Subsampled Layout
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.subsampledLayout
@@ -258,6 +261,7 @@ MonoBehaviour:
   m_Name: MetaXRFeature Standalone
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Meta XR Feature
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.metaxr
@@ -298,6 +302,13 @@ MonoBehaviour:
   targetOpenXRApiVersion: 1.1.45
   required: 0
   customRuntimeLoaderName: 
+  _parametricHapticsEnabled: 0
+  _hapticsAmplitudeEnvelopeEnabled: 0
+  _hapticPcmEnabled: 0
+  _simultaneousHandsAndControllersEnabled: 0
+  _parametricHapticsSupported: 0
+  _simultaneousHandsAndControllersSupported: 0
+  _storageEnabled: 0
 --- !u!114 &-6577256934377628927
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -494,6 +505,7 @@ MonoBehaviour:
   m_Name: MetaHandTrackingAim Standalone
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Meta Hand Tracking Aim
   version: 0.0.1
   featureIdInternal: com.unity.openxr.feature.input.metahandtrackingaim
@@ -538,6 +550,7 @@ MonoBehaviour:
   m_Name: MetaXREyeTrackedFoveationFeature Standalone
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Meta XR Eye Tracked Foveation
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.eyetrackedfoveation
@@ -761,6 +774,7 @@ MonoBehaviour:
   m_Name: MetaXRFeature Android
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Meta XR Feature
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.metaxr
@@ -801,6 +815,13 @@ MonoBehaviour:
   targetOpenXRApiVersion: 1.1.45
   required: 0
   customRuntimeLoaderName: 
+  _parametricHapticsEnabled: 0
+  _hapticsAmplitudeEnvelopeEnabled: 0
+  _hapticPcmEnabled: 0
+  _simultaneousHandsAndControllersEnabled: 0
+  _parametricHapticsSupported: 0
+  _simultaneousHandsAndControllersSupported: 0
+  _storageEnabled: 0
 --- !u!114 &-3877356153139437589
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -814,6 +835,7 @@ MonoBehaviour:
   m_Name: HandTracking Standalone
   m_EditorClassIdentifier: 
   m_enabled: 1
+  <failedInitialization>k__BackingField: 0
   nameUi: Hand Tracking Subsystem
   version: 0.0.1
   featureIdInternal: com.unity.openxr.feature.input.handtracking
@@ -823,6 +845,7 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+  m_ShouldBeRunning: 0
 --- !u!114 &-3713318296171469238
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -951,6 +974,7 @@ MonoBehaviour:
   m_Name: DetachedMetaQuestTouchProControllerProfile Standalone
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Detached Meta Quest Touch Pro Controller Profile
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.input.metaquestpro.detached
@@ -1242,6 +1266,7 @@ MonoBehaviour:
   m_Name: HandTracking Android
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Hand Tracking Subsystem
   version: 0.0.1
   featureIdInternal: com.unity.openxr.feature.input.handtracking
@@ -1251,6 +1276,7 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+  m_ShouldBeRunning: 0
 --- !u!114 &-170292908862812874
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1324,6 +1350,7 @@ MonoBehaviour:
   m_Name: MetaXRSubsampledLayout Standalone
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Meta XR Subsampled Layout
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.subsampledLayout
@@ -1346,6 +1373,7 @@ MonoBehaviour:
   m_Name: MetaXRFoveationFeature Standalone
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Meta XR Foveation
   version: 1.0.0
   featureIdInternal: com.meta.openxr.feature.foveation
@@ -1368,6 +1396,7 @@ MonoBehaviour:
   m_Name: DetachedMetaQuestTouchPlusControllerProfile Standalone
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Detached Meta Quest Touch Plus Controller Profile
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.input.metaquestplus.detached
@@ -1523,9 +1552,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   features:
   - {fileID: -819417205863319379}
-  - {fileID: 316232080007384415}
-  - {fileID: -2741390557855195883}
-  - {fileID: 2473637460946953921}
   - {fileID: 3985890165034930998}
   - {fileID: 4241324581249724611}
   - {fileID: -5844029959909559249}
@@ -1535,13 +1561,8 @@ MonoBehaviour:
   - {fileID: -3152242202056716026}
   - {fileID: -6268112622796117988}
   - {fileID: -1994771947879664401}
-  - {fileID: -5364859220550959874}
   - {fileID: 111756720679658022}
   - {fileID: 4172760412729986177}
-  - {fileID: -5219877435264759731}
-  - {fileID: -6621855405472044688}
-  - {fileID: 258944941451483088}
-  - {fileID: 246506413079963974}
   - {fileID: -1370124307803341512}
   - {fileID: 5700482195320280270}
   - {fileID: -3473397860694986489}
@@ -1565,7 +1586,6 @@ MonoBehaviour:
   - {fileID: 2390611139742595124}
   - {fileID: -8780654802938281744}
   - {fileID: -1479430872163121658}
-  - {fileID: -3877356153139437589}
   customLoaderName: 
   m_renderMode: 1
   m_latencyOptimization: 0
@@ -1636,6 +1656,7 @@ MonoBehaviour:
   m_Name: DetachedOculusTouchControllerProfile Standalone
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Detached Oculus Touch Controller Profile
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.input.oculustouch.detached
@@ -1705,6 +1726,7 @@ MonoBehaviour:
   m_Name: MetaXRSpaceWarp Android
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Meta XR Space Warp
   version: 1.0.0
   featureIdInternal: com.meta.openxr.feature.spacewarp
@@ -1964,6 +1986,7 @@ MonoBehaviour:
   m_Name: MetaXRFoveationFeature Android
   m_EditorClassIdentifier: 
   m_enabled: 1
+  <failedInitialization>k__BackingField: 0
   nameUi: Meta XR Foveation
   version: 1.0.0
   featureIdInternal: com.meta.openxr.feature.foveation
@@ -2021,6 +2044,7 @@ MonoBehaviour:
   m_Name: MetaXREyeTrackedFoveationFeature Android
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Meta XR Eye Tracked Foveation
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.eyetrackedfoveation
@@ -2247,24 +2271,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   features:
   - {fileID: 4380745338104271491}
-  - {fileID: -8150337737419009664}
-  - {fileID: 8306809838339701926}
-  - {fileID: -6834828545610193054}
   - {fileID: 4776117349214655252}
   - {fileID: 3387584947675775261}
   - {fileID: 2898534022400255575}
   - {fileID: -8289628727055745505}
   - {fileID: 1737267563399932940}
   - {fileID: -4777241866844220328}
-  - {fileID: 8334554286994107845}
   - {fileID: -1276249748938892568}
   - {fileID: -5163314242511265368}
   - {fileID: 1697399624827805319}
-  - {fileID: 4843075825196353864}
-  - {fileID: -4106675497833022631}
-  - {fileID: 4665250628255087387}
-  - {fileID: 2980106094551424599}
-  - {fileID: -6817446180834783807}
   - {fileID: 1806674090685193961}
   - {fileID: 6729931198219146845}
   - {fileID: -1244018521907023202}
@@ -2299,7 +2314,6 @@ MonoBehaviour:
   - {fileID: 4084554129660291126}
   - {fileID: -1243631704705538004}
   - {fileID: -7874747344103510402}
-  - {fileID: -490413260265967442}
   customLoaderName: 
   m_renderMode: 1
   m_latencyOptimization: 0
@@ -2439,6 +2453,7 @@ MonoBehaviour:
   m_Name: DetachedMetaQuestTouchProControllerProfile Android
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Detached Meta Quest Touch Pro Controller Profile
   version: 0.0.1
   featureIdInternal: com.meta.openxr.feature.input.metaquestpro.detached
@@ -2461,6 +2476,7 @@ MonoBehaviour:
   m_Name: MetaHandTrackingAim Android
   m_EditorClassIdentifier: 
   m_enabled: 0
+  <failedInitialization>k__BackingField: 0
   nameUi: Meta Hand Tracking Aim
   version: 0.0.1
   featureIdInternal: com.unity.openxr.feature.input.metahandtrackingaim
