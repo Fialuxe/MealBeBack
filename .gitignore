@@ -104,3 +104,10 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# TextMesh Pro demo/sample content is not needed for builds
+/[Aa]ssets/TextMesh Pro/Examples & Extras/
+/[Aa]ssets/TextMesh Pro/Examples & Extras.meta
+
+# VS Code workspace settings (auto-generated)
+.vscode/
