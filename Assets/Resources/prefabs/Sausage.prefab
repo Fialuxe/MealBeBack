@@ -74,9 +74,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 8919934127225428127, guid: 91b211fdfb698f5468e752f0464353cf, type: 3}
       insertIndex: -1
       addedObject: {fileID: 8098612877072885675}
-    - targetCorrespondingSourceObject: {fileID: 8919934127225428127, guid: 91b211fdfb698f5468e752f0464353cf, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 9110730607833683992}
   m_SourcePrefab: {fileID: -4161369568681901532, guid: 91b211fdfb698f5468e752f0464353cf, type: 3}
 --- !u!1 &8792834026576602937 stripped
 GameObject:
@@ -133,36 +130,3 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!114 &9110730607833683992
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8792834026576602937}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9a5fb0ca93b55ef4b8d54b512b103341, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  poseAction:
-    actionPath: /actions//in/Pose
-    needsReinit: 1
-  inputSource: 10
-  origin: {fileID: 0}
-  onTransformUpdated:
-    m_PersistentCalls:
-      m_Calls: []
-  onTransformChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  onConnectedChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  onTrackingChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  onDeviceIndexChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  broadcastDeviceChanges: 1
