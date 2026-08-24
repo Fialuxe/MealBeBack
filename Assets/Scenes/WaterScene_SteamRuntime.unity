@@ -11594,13 +11594,14 @@ PrefabInstance:
       propertyPath: inputSource
       value: 4
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 8098612877072885675, guid: 137caa106f26fec49bfa9998eed9e3a4, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 8792834026576602937, guid: 137caa106f26fec49bfa9998eed9e3a4, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 3006319567987316687}
+      addedObject: {fileID: 3006319567987316691}
   m_SourcePrefab: {fileID: 100100000, guid: 137caa106f26fec49bfa9998eed9e3a4, type: 3}
 --- !u!4 &3006319567987316685 stripped
 Transform:
@@ -11612,7 +11613,7 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 8792834026576602937, guid: 137caa106f26fec49bfa9998eed9e3a4, type: 3}
   m_PrefabInstance: {fileID: 3006319567987316684}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &3006319567987316687
+--- !u!114 &3006319567987316691
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -11621,10 +11622,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 3006319567987316686}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8545dc8a49afa8144a2bc2eeae899523, type: 3}
+  m_Script: {fileID: 11500000, guid: 17448e84be01fcb4aabd0e1fd4dd86cb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  targetSerial: 
+  deviceName: VIVEUltimateTracker0
 --- !u!1001 &3520265573561727813
 PrefabInstance:
   m_ObjectHideFlags: 0
