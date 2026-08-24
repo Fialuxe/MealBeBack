@@ -42,19 +42,28 @@ public class ViveTrackerDirect : MonoBehaviour
     }
 
     void Update()
-    {
-        if (vrSystem == null) return;
-        if (deviceIndex == OpenVR.k_unTrackedDeviceIndexInvalid) { ScanDevices(); return; }
+{
+    if (vrSystem == null) return;
+    if (deviceIndex == OpenVR.k_unTrackedDeviceIndexInvalid) { ScanDevices(); return; }
 
-        vrSystem.GetDeviceToAbsoluteTrackingPose(
-            ETrackingUniverseOrigin.TrackingUniverseStanding, 0, poses);
+    var pose = new TrackedDevicePose_t[1];
+    var gamePose = new TrackedDevicePose_t[1];
 
-        if (!poses[deviceIndex].bPoseIsValid) return;
+    var compositor = OpenVR.Compositor;
+    if (compositor == null) return;
 
-        var rt = new SteamVR_Utils.RigidTransform(poses[deviceIndex].mDeviceToAbsoluteTracking);
-        transform.localPosition = rt.pos;
-        transform.localRotation = rt.rot;
-    }
+    // Compositor経由(Background appでは使えない場合あり)
+    // 代わりに範囲を明示:
+    vrSystem.GetDeviceToAbsoluteTrackingPose(
+        ETrackingUniverseOrigin.TrackingUniverseStanding, 0f, poses);
+
+    if (deviceIndex >= poses.Length) return;
+    if (!poses[deviceIndex].bPoseIsValid) return;
+
+    var rt = new SteamVR_Utils.RigidTransform(poses[deviceIndex].mDeviceToAbsoluteTracking);
+    transform.localPosition = rt.pos;
+    transform.localRotation = rt.rot;
+}
 
     void OnDestroy()
     {
