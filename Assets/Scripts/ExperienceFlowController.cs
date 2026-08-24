@@ -45,31 +45,76 @@ public class ExperienceFlowController : MonoBehaviour
         if (Keyboard.current == null)
             return;
 
+        switch (currentState)
+        {
+            case FlowState.Ready:
+                HandleReadyInput();
+            break;
+
+            case FlowState.Quiz:
+                HandleQuizInput();
+                break;
+
+            case FlowState.Result:
+                HandleResultInput();
+                break;
+        }
+    }
+
+    private void HandleReadyInput()
+    {
         bool enterPressed =
             Keyboard.current.enterKey.wasPressedThisFrame ||
             Keyboard.current.numpadEnterKey.wasPressedThisFrame;
 
-        if (!enterPressed)
+        if (enterPressed)
+        {
+            StartQuiz();
+        }
+    }
+
+    private void HandleQuizInput()
+    {
+        if (quizManager == null)
             return;
 
-        switch (currentState)
+        // デバッグ用：前の問題
+        if (Keyboard.current.leftArrowKey.wasPressedThisFrame)
         {
-            case FlowState.Ready:
-                StartQuiz();
-                break;
+            quizManager.DebugPreviousQuestion();
+            return;
+        }
 
-            case FlowState.Quiz:
-                // 今はデバッグ用。
-                // 後でTrackerによる回答処理に置き換える。
-                if (quizManager != null)
-                {
-                    quizManager.DebugAdvanceQuestion();
-                }
-                break;
+        // デバッグ用：次の問題
+        if (Keyboard.current.rightArrowKey.wasPressedThisFrame)
+        {
+            quizManager.DebugNextQuestion();
+            return;
+        }
 
-            case FlowState.Result:
-                ReturnToSetup();
-                break;
+        // 仮：左の食品を食べた
+        if (Keyboard.current.aKey.wasPressedThisFrame)
+        {
+            quizManager.AnswerLeft();
+            return;
+        }
+
+        // 仮：右の食品を食べた
+        if (Keyboard.current.dKey.wasPressedThisFrame)
+        {
+            quizManager.AnswerRight();
+        }
+    }
+
+    private void HandleResultInput()
+    {
+        bool enterPressed =
+            Keyboard.current.enterKey.wasPressedThisFrame ||
+            Keyboard.current.numpadEnterKey.wasPressedThisFrame;
+
+        if (enterPressed)
+        {
+            ReturnToSetup();
         }
     }
 
