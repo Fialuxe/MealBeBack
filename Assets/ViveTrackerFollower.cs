@@ -1,29 +1,42 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 
 public class ViveTrackerFollower : MonoBehaviour
 {
-    [SerializeField] private InputActionReference positionAction;
-    [SerializeField] private InputActionReference rotationAction;
+    [SerializeField] private string deviceName = "VIVEUltimateTracker0";
 
-    void OnEnable()
+    private Vector3Control posControl;
+    private QuaternionControl rotControl;
+    private ButtonControl trackedControl;
+
+    void FindDevice()
     {
-        positionAction?.action.Enable();
-        rotationAction?.action.Enable();
+        foreach (var d in InputSystem.devices)
+        {
+            if (d.name != deviceName) continue;
+            posControl     = d.TryGetChildControl<Vector3Control>("devicePosition");
+            rotControl     = d.TryGetChildControl<QuaternionControl>("deviceRotation");
+            trackedControl = d.TryGetChildControl<ButtonControl>("isTracked");
+            return;
+        }
     }
 
-    void OnDisable()
+   void Update()
+{
+    if (posControl == null)
     {
-        positionAction?.action.Disable();
-        rotationAction?.action.Disable();
+        FindDevice();
+        Debug.Log($"posControl null -> FindDevice. found={(posControl != null)}");
+        return;
     }
 
-    void Update()
-    {
-        if (positionAction != null && positionAction.action.enabled)
-            transform.localPosition = positionAction.action.ReadValue<Vector3>();
+    var p = posControl.ReadValue();
+    bool tracked = trackedControl != null && trackedControl.isPressed;
+    Debug.Log($"tracked={tracked} read={p:F3} local={transform.localPosition:F3} world={transform.position:F3}");
 
-        if (rotationAction != null && rotationAction.action.enabled)
-            transform.localRotation = rotationAction.action.ReadValue<Quaternion>();
-    }
+    transform.localPosition = p;
+    if (rotControl != null)
+        transform.localRotation = rotControl.ReadValue();
+}
 }
