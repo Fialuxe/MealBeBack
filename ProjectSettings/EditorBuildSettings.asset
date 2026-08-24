@@ -12,6 +12,7 @@ EditorBuildSettings:
     path: Assets/Scenes/WaterScene.unity
     guid: 105cac3691678dc4d8c3c0d15bf37a6c
   m_configObjects:
+    Unity.XR.OpenVR.Settings: {fileID: 11400000, guid: 47a7a18ca3397554abb67ec14e884082, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 2569cb658d8dcce478541beca3dc60eb, type: 2}
     com.unity.xr.openxr.settings4: {fileID: 11400000, guid: cf5bf8bfae15d064bb394d40beb29607, type: 2}
