@@ -44,7 +44,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 809409649d81c13438e972dcdd770ab1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  setupSceneName: SetupScene
+  setupSceneName: SetupScene_SteamRuntime
   readyRoot: {fileID: 0}
   quizRoot: {fileID: 0}
   resultRoot: {fileID: 0}
