@@ -76,18 +76,21 @@ public static class FishBuildTool
             tailExtraNames = new[] { "bone_8", "bone_9" },
             tailExtraAngleDeg = 7f, tailExtraLag = 0.5f, tailExtraCycles = 1,
         },
-        // マグロ: thunniform。胴体はほぼ剛体、尾連鎖 bone_5..8 だけを強く速く打つ。
-        //         ヒレ bone_3/4/1 を少し速くはためかせる。
+        // マグロ: thunniform。胴体も頭も剛体で、尾連鎖 bone_5..8 だけを強く速く打つ。
+        // ボーン配置 (モデル空間、+X = 前方):
+        //   bone_2 吻先端 +4.03 / bone_1 頭 +2.03 / bone_3,bone_4 左右の胸ビレ (Z=∓1.16,+1.16)
+        //   / bone_0 胴体 +1.63 / bone_5..8 尾 -0.96→-7.63
+        // 旧 BluefinSwim の finBoneNames に bone_1(頭) が混ざっており、これを引き継いだ結果
+        // 頭が 3.2Hz で左右に振れていた。tailExtra は使わない。bone_1 を戻さないこと。
         // 旧 BluefinSwim: maxSwayAngle 22, phaseLagPerBone 55°=0.96rad (×3本=2.88), swimFrequency 1.6,
-        //                tailWeightCurve (0,.05)(.5,.25)(1,1), finFrequency 2.4, finAngle 9。
+        //                tailWeightCurve (0,.05)(.5,.25)(1,1)。
         new SpeciesDef
         {
             niceName = "Bluefin", glb = "bluefin_rigged_xplus.glb", rootScale = 0.2f,
             spineNames = new[] { "bone_5", "bone_6", "bone_7", "bone_8" },
             bendAngleDeg = 22f, phaseLagTotal = (55f * Mathf.Deg2Rad) * 3f, clipLength = 1f / 1.6f,
             ampKeys = new[] { new Keyframe(0f, 0.05f), new Keyframe(0.5f, 0.25f), new Keyframe(1f, 1f) },
-            tailExtraNames = new[] { "bone_3", "bone_4", "bone_1" },
-            tailExtraAngleDeg = 9f, tailExtraLag = 0f, tailExtraCycles = 2,
+            tailExtraNames = null,
         },
     };
 
