@@ -40,38 +40,46 @@ public static class FishBuildTool
         public float bendAngleDeg;   // 尾の最大振れ角
         public float phaseLagTotal;  // 頭→尾の位相遅れ (rad, チェーン全体)
         public float clipLength;     // 公称 1 ビートの秒数
+        public Keyframe[] ampKeys;   // 頭(0)→尾(1) の振幅分布 (体型で変える)
     }
 
     private static readonly SpeciesDef[] Species =
     {
+        // 鯛: carangiform。体全体をゆるく S 字にくねらせる。波長長め・振幅は中盤から立ち上がる。
         new SpeciesDef
         {
             niceName = "Seabream", glb = "seabream_rigged_xplus.glb", rootScale = 0.1f,
             bonePrefix = "bone_", firstBone = 0, lastBone = 8,
-            bendAngleDeg = 14f, phaseLagTotal = 1.6f, clipLength = 0.9f
+            bendAngleDeg = 15f, phaseLagTotal = 1.9f, clipLength = 0.95f,
+            ampKeys = new[]
+            {
+                new Keyframe(0f, 0.12f), new Keyframe(0.5f, 0.45f), new Keyframe(1f, 1f)
+            }
         },
+        // ツナ: subcarangiform。前半は硬め、後半〜尾で振る。
         new SpeciesDef
         {
             niceName = "Tuna", glb = "tuna_rigged_xplus.glb", rootScale = 0.2f,
             bonePrefix = "bone_", firstBone = 1, lastBone = 8,
-            bendAngleDeg = 10f, phaseLagTotal = 1.3f, clipLength = 0.8f
+            bendAngleDeg = 11f, phaseLagTotal = 1.35f, clipLength = 0.8f,
+            ampKeys = new[]
+            {
+                new Keyframe(0f, 0.05f), new Keyframe(0.55f, 0.3f), new Keyframe(1f, 1f)
+            }
         },
+        // マグロ: thunniform。胴体はほぼ剛体、尾柄〜尾ビレだけを強く速く打つ。
         new SpeciesDef
         {
             niceName = "Bluefin", glb = "bluefin_rigged_xplus.glb", rootScale = 0.2f,
             bonePrefix = "bone_", firstBone = 1, lastBone = 8,
-            bendAngleDeg = 8f, phaseLagTotal = 1.0f, clipLength = 0.7f
+            bendAngleDeg = 10f, phaseLagTotal = 0.7f, clipLength = 0.62f,
+            ampKeys = new[]
+            {
+                new Keyframe(0f, 0.02f), new Keyframe(0.65f, 0.1f),
+                new Keyframe(0.85f, 0.45f), new Keyframe(1f, 1f)
+            }
         },
     };
-
-    // 頭(0) → 尾(1) の振幅分布。頭はほぼ動かさず尾で大きく振る。
-    private static AnimationCurve AmpAlongBody()
-    {
-        return new AnimationCurve(
-            new Keyframe(0f, 0.05f),
-            new Keyframe(0.55f, 0.4f),
-            new Keyframe(1f, 1f));
-    }
 
     [MenuItem("Tools/Fish/Rebuild Fish Assets")]
     public static void Rebuild()
@@ -169,7 +177,7 @@ public static class FishBuildTool
         }
 
         AnimationClip clip = new AnimationClip { frameRate = 30f };
-        AnimationCurve ampCurve = AmpAlongBody();
+        AnimationCurve ampCurve = new AnimationCurve(sp.ampKeys);
 
         for (int i = 0; i < n; i++)
         {
