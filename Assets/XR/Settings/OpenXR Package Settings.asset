@@ -448,6 +448,31 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+--- !u!114 &-5582640476322503539
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c465bd23c9c4fb442ae89117552a5f3f, type: 3}
+  m_Name: HandTrackingFeature Android
+  m_EditorClassIdentifier: 
+  m_enabled: 0
+  nameUi: Ultraleap Hand Tracking
+  version: 1.0.0
+  featureIdInternal: com.ultraleap.tracking.openxr.feature.handtracking
+  openxrExtensionStrings: XR_EXT_hand_tracking XR_ULTRALEAP_hand_tracking_forearm
+    XR_ULTRALEAP_hand_tracking_hints
+  company: Ultraleap
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
+  metaPermissions: 1
+  metaHighFrequency: 1
 --- !u!114 &-5523652120524778294
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1050,6 +1075,31 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
+--- !u!114 &-2310528936082344500
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c465bd23c9c4fb442ae89117552a5f3f, type: 3}
+  m_Name: HandTrackingFeature Standalone
+  m_EditorClassIdentifier: 
+  m_enabled: 1
+  nameUi: Ultraleap Hand Tracking
+  version: 1.0.0
+  featureIdInternal: com.ultraleap.tracking.openxr.feature.handtracking
+  openxrExtensionStrings: XR_EXT_hand_tracking XR_ULTRALEAP_hand_tracking_forearm
+    XR_ULTRALEAP_hand_tracking_hints
+  company: Ultraleap
+  priority: 0
+  targetOpenXRApiVersion: 
+  required: 0
+  customRuntimeLoaderName: 
+  metaPermissions: 1
+  metaHighFrequency: 1
 --- !u!114 &-1994771947879664401
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1569,6 +1619,7 @@ MonoBehaviour:
   - {fileID: -7446588516323018006}
   - {fileID: -2434904768737675020}
   - {fileID: -4245930977443272156}
+  - {fileID: -2310528936082344500}
   - {fileID: 7648108819581535117}
   - {fileID: -2740742837774985561}
   - {fileID: -8200068145573094841}
@@ -2180,7 +2231,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 80a759a91a5fd35479312cdd18e70a32, type: 3}
   m_Name: VivePathEnumeration Standalone
   m_EditorClassIdentifier: 
-  m_enabled: 1
+  m_enabled: 0
   nameUi: VIVE XR Path Enumeration (Beta)
   version: 1.0.6
   featureIdInternal: vive.wave.openxr.feature.pathenumeration
@@ -2286,6 +2337,7 @@ MonoBehaviour:
   - {fileID: 1679254506125127967}
   - {fileID: 5256047849174222522}
   - {fileID: -6821614156409267175}
+  - {fileID: -5582640476322503539}
   - {fileID: -5466685510693304154}
   - {fileID: -5906133928153113084}
   - {fileID: -7070760807409619675}

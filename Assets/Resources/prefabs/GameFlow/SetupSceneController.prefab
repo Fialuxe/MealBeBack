@@ -44,7 +44,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 01446bad9d8a0e04192137901a295776, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gameSceneName: WaterScene
+  gameSceneName: WaterScene_SteamRuntime
   preparationText: {fileID: 0}
   headTransform: {fileID: 0}
   tableHeightCalibration: {fileID: 0}
