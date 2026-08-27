@@ -222,22 +222,37 @@ public void EmitPollockFromMouth() {
 
 状態: `Transform _tf`, `Animator _animator`, `AmbientSpecies _cfg`, `_heading/_targetHeading/_headingVel`, `_pitch/_targetPitch/_pitchVel`, `_roll/_rollVel`, `_speed`, `_wanderSeed`。
 
-- `Init(Transform tf, Animator animator, AmbientSpecies cfg, float phaseSeed)`
+- `Init(Transform tf, Animator animator, AmbientSpecies cfg, int speciesIndex, float phaseSeed)`
 - `ResetState(float phaseSeed)` — `_wanderSeed = phaseSeed*1.618f + Random.value*10f`、平滑化速度ゼロ
-- `Tick(float dt, Vector3 anchorPos)` — **O(1)、近傍アクセス・ボーン計算なし**:
+- `Tick(float dt, Vector3 anchorPos, FishSystem sys, int selfIndex)` — **O(1)（近傍は空間ハッシュ経由）**:
   1. Perlin 徘徊: `_targetHeading += (PerlinNoise(seed + t*noiseSpeed) * 2 - 1) * maxYawRate * wanderYawAmplitude * dt`
-  2. 遊泳帯（水平のみソフト操舵）: `d = |flat(anchorPos - pos)|`。`d > bandOuter` → 内向き `LerpAngle`（重み `((d-bandOuter)/bandOuter)*bandPull`）。`d < bandInner` → 外向き(+180°)`LerpAngle`
-  3. 深度キープ: `targetY = anchorPos.y + depthOffset`; `_targetPitch = Lerp(0, clamp(-yErr*10, ±maxPitchAngle), depthPull)`
-  4. `SmoothDampAngle` で `_heading` / `_pitch` をレート制限追従、`_pitch` を `±maxPitchAngle` にクランプ
-  5. 見た目バンク: `yawRate = DeltaAngle(prev,_heading)/dt`; `targetRoll = clamp(-yawRate/maxYawRate,±1)*maxBankAngle`; `SmoothDampAngle`
-  6. 適用: `dir = Euler(_pitch,_heading,0)*Vector3.forward`; `_tf.rotation = LookRotation(dir,up) * Euler(0, modelYawOffset, _roll)`; `_tf.position = pos + dir * _speed * dt`
-  7. `_speed = cruiseSpeed * (1 + PerlinNoise(...)*speedVariation)`; `_animator.speed = Mathf.Clamp(_speed/cruiseSpeed, animSpeedMin, animSpeedMax)`（float 1 回）
+  2. 遊泳帯（水平のみソフト操舵）: `d = |flat(anchorPos - pos)|`。`d > bandOuter` → 内向き `LerpAngle`。`d < bandInner` → 外向き(+180°)`LerpAngle`
+  3. 群れ（`schooling` の種のみ）: `sys.SchoolingForce(selfIndex)` = 同種の結合+整列+分離を水平ベクトルで返す → yaw に変換して `_targetHeading` を `LerpAngle`
+  4. 深度キープ: `targetY = anchorPos.y + depthOffset`; `_targetPitch = Lerp(0, clamp(-yErr*10, ±maxPitchAngle), depthPull)`
+  5. `SmoothDampAngle`（`turnSmoothTime` が旋回の慣性）で `_heading` / `_pitch` をレート制限追従
+  6. 見た目バンク: `targetRoll = clamp(-yawRate/maxYawRate,±1)*maxBankAngle`; `SmoothDampAngle`
+  7. 横うねり（見た目のみ・進路には積分しない）: `sway = swayAmplitude * sin(2π t/swayPeriod + seed)`
+  8. 適用: `travel = Euler(_pitch,_heading,0)*fwd`; `look = Euler(_pitch,_heading+sway,0)*fwd`; `rotation = LookRotation(look) * Euler(0, modelYawOffset, _roll)`; `pos += travel * _speed * dt`。`_pos`/`_fwd` をスナップショット
+  9. `_animator.speed = clamp(_speed/cruiseSpeed, animSpeedMin, animSpeedMax)`（float 1 回）
 
-`dir` は進行方向。モデル facing は `modelYawOffset` で補正。プレハブスケール不変。
+### 種別の癖（「その魚らしい」泳ぎ）
 
-### 種間セパレーション
+`AmbientSpecies` の値で表現。3 種の目安:
 
-**なし（スキップ）。** 要件は「簡素な AI で適切に泳ぐ」。playtest で群れ固まりが目立つ時のみ、tick を O(N) に保つ均一空間ハッシュ（`useSeparation` フラグ、既定 off）を追加。素朴ループは不可。
+| | 鯛 seabream | ツナ tuna | マグロ bluefin |
+|---|---|---|---|
+| `cruiseSpeed` | 0.8 | 1.4 | 1.9 |
+| `bandInner / bandOuter` | 4 / 12 | 8 / 20 | 11 / 24 |
+| `depthOffset` | 0 | 1 | 1.5 |
+| `maxYawRate` / `turnSmoothTime` | 40 / 0.35（小回り） | 30 / 0.6 | 18 / 1.4（大回り・慣性大） |
+| `swayAmplitude` / `swayPeriod` | 7 / 2.6（S 字強め） | 4 / 3 | 1.5 / 4（ほぼ直進） |
+| `schooling` ほか | true, `schoolRadius 4`, `cohesion 0.3`, `alignment 0.45`, `separation 1.0` | false | false |
+
+クリップ側の体型差（carangiform / thunniform）は `FishBuildTool.Species` の `ampKeys` / `phaseLagTotal` / `bendAngleDeg` に反映済み。
+
+### 群れ（`schooling` 種のみ・O(N)）
+
+`FishSystem` が均一空間ハッシュ（`Dictionary<long,List<int>>`、セル = `max(3, schoolRadius)`）を、群れる種を含むときだけ毎フレーム O(N) で張り直す。`SchoolingForce()` は自セル + 水平 8 近傍だけ走査（平均 O(1)）、同種のみ対象。結合/整列/分離を合成した水平ベクトルを返す。素朴な全ペアループは使わない。群れない種（ツナ/マグロ）はグリッドに載らずコストゼロ。
 
 ---
 
@@ -331,9 +346,9 @@ Assets/Resources/prefabs/fish/     (新規フォルダ。FishBuildTool が生成
 
   | idx | label | prefab | 主な調整値 |
   |---|---|---|---|
-  | 0 | seabream | `Assets/Resources/prefabs/fish/Seabream.prefab` | `weight 3`, `cruiseSpeed 0.8`, `bandInner 4`, `bandOuter 12`, `depthOffset 0` |
-  | 1 | tuna | `Assets/Resources/prefabs/fish/Tuna.prefab` | `weight 1`, `cruiseSpeed 1.4`, `bandInner 8`, `bandOuter 20`, `depthOffset 1` |
-  | 2 | bluefin | `Assets/Resources/prefabs/fish/Bluefin.prefab` | `weight 1`, `cruiseSpeed 1.8`, `bandInner 10`, `bandOuter 22`, `depthOffset 1.5` |
+  | 0 | seabream | `Assets/Resources/prefabs/fish/Seabream.prefab` | `weight 3`, `cruiseSpeed 0.8`, `bandInner 4`, `bandOuter 12`, `depthOffset 0`, `maxYawRate 40`, `turnSmoothTime 0.35`, `swayAmplitude 7`, `swayPeriod 2.6`, `schooling ✔` (`schoolRadius 4`, `cohesion 0.3`, `alignment 0.45`, `separation 1.0`, `separationDist 1.3`) |
+  | 1 | tuna | `Assets/Resources/prefabs/fish/Tuna.prefab` | `weight 1`, `cruiseSpeed 1.4`, `bandInner 8`, `bandOuter 20`, `depthOffset 1`, `maxYawRate 30`, `turnSmoothTime 0.6`, `swayAmplitude 4`, `swayPeriod 3`, `schooling ✘` |
+  | 2 | bluefin | `Assets/Resources/prefabs/fish/Bluefin.prefab` | `weight 1`, `cruiseSpeed 1.9`, `bandInner 11`, `bandOuter 24`, `depthOffset 1.5`, `maxYawRate 18`, `turnSmoothTime 1.4`, `swayAmplitude 1.5`, `swayPeriod 4`, `schooling ✘` |
 
   3種とも `modelYawOffset 90`（再生時に符号確認）。
 - `maxFish 40`, `initialFishCount 18`, `spawnRingMin/Max 6/14`, `spawnDepthMin/Max -3/2`

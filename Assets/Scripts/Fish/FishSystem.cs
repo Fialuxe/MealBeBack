@@ -51,6 +51,26 @@ public class FishSystem : MonoBehaviour
         [Range(0f, 1f)] public float wanderYawAmplitude = 1f;
         public float wanderNoiseSpeed = 0.15f;
 
+        [Header("泳ぎ方 (種別の癖)")]
+        [Tooltip("進路に乗る横うねり (S字) の振れ角 [deg]。鯛系 = 大、マグロ系 = ほぼ 0。")]
+        public float swayAmplitude = 5f;
+        [Tooltip("横うねりの周期 [s]。大きいほどゆったり。")]
+        public float swayPeriod = 3f;
+
+        [Header("群れ (同種のみ)")]
+        [Tooltip("群れる種か。鯛のみ true 想定。")]
+        public bool schooling = false;
+        [Tooltip("仲間として意識する半径 [m]。")]
+        public float schoolRadius = 4f;
+        [Range(0f, 1f), Tooltip("群れの中心へ寄る強さ。")]
+        public float cohesion = 0.3f;
+        [Range(0f, 1f), Tooltip("仲間と向きを揃える強さ。")]
+        public float alignment = 0.4f;
+        [Range(0f, 2f), Tooltip("近づきすぎた仲間から離れる強さ。")]
+        public float separation = 1f;
+        [Tooltip("この距離以内の仲間から離れる [m]。")]
+        public float separationDist = 1.4f;
+
         [Header("ユーザー周辺の遊泳帯")]
         [Tooltip("これより近いと離れる (m)。")]
         public float bandInner = 5f;
@@ -149,6 +169,12 @@ public class FishSystem : MonoBehaviour
     private int _phase;
     private int _totalWeight;
 
+    // 群れ用の均一空間ハッシュ (毎フレーム O(N) で再構築、近傍参照は平均 O(1))。
+    private readonly Dictionary<long, List<int>> _grid = new Dictionary<long, List<int>>();
+    private readonly Stack<List<int>> _cellPool = new Stack<List<int>>();
+    private float _cellSize = 3f;
+    private bool _anySchooling;
+
     public int AmbientCount => _ambient.Count;
     public int PollockCount => _pollocks.Count;
 
@@ -168,6 +194,8 @@ public class FishSystem : MonoBehaviour
         }
 
         _totalWeight = 0;
+        _anySchooling = false;
+        _cellSize = 3f;
         if (species != null)
         {
             foreach (AmbientSpecies s in species)
@@ -178,6 +206,11 @@ public class FishSystem : MonoBehaviour
                     continue;
                 }
                 _totalWeight += Mathf.Max(0, s.weight);
+                if (s.schooling)
+                {
+                    _anySchooling = true;
+                    _cellSize = Mathf.Max(_cellSize, s.schoolRadius);
+                }
             }
         }
 
@@ -197,10 +230,14 @@ public class FishSystem : MonoBehaviour
 
         Vector3 anchorPos = _anchor.position;
 
+        // 群れがある種を含むときだけ空間ハッシュを張り直す (O(N))。
+        if (_anySchooling)
+            RebuildGrid();
+
         // 唯一の O(N) tick。
         for (int i = 0; i < _ambient.Count; i++)
         {
-            _ambient[i].Tick(dt, anchorPos);
+            _ambient[i].Tick(dt, anchorPos, this, i);
         }
 
         // スケトウダラの遊泳範囲をユーザーへ追従 (最大 maxPollock 匹)。
@@ -237,9 +274,10 @@ public class FishSystem : MonoBehaviour
                 continue;
             }
 
-            AmbientSpecies cfg = PickSpecies();
-            if (cfg == null)
+            int speciesIndex = PickSpeciesIndex();
+            if (speciesIndex < 0)
                 break;
+            AmbientSpecies cfg = species[speciesIndex];
 
             GameObject go = Instantiate(cfg.prefab, _fishParent);
             go.name = $"{cfg.prefab.name}_{_phase:000}";
@@ -250,26 +288,27 @@ public class FishSystem : MonoBehaviour
                 animator.cullingMode = AnimatorCullingMode.CullCompletely;
 
             AmbientFish fish = new AmbientFish();
-            fish.Init(go.transform, animator, cfg, _phase++);
+            fish.Init(go.transform, animator, cfg, speciesIndex, _phase++);
             _ambient.Add(fish);
             done++;
         }
         return done;
     }
 
-    private AmbientSpecies PickSpecies()
+    private int PickSpeciesIndex()
     {
         int roll = Random.Range(0, _totalWeight);
-        foreach (AmbientSpecies s in species)
+        for (int i = 0; i < species.Length; i++)
         {
+            AmbientSpecies s = species[i];
             if (s == null || s.prefab == null)
                 continue;
             int w = Mathf.Max(0, s.weight);
             if (roll < w)
-                return s;
+                return i;
             roll -= w;
         }
-        return null;
+        return -1;
     }
 
     private void PlaceOnSpawnRing(Transform t)
@@ -303,6 +342,116 @@ public class FishSystem : MonoBehaviour
 
         PlaceOnSpawnRing(fish.Tf);
         fish.ResetState(_phase++);
+    }
+
+    // ───────────────────────────── 群れ (空間ハッシュ) ─────────────────────────
+    private void RebuildGrid()
+    {
+        foreach (List<int> bucket in _grid.Values)
+        {
+            bucket.Clear();
+            _cellPool.Push(bucket);
+        }
+        _grid.Clear();
+
+        float inv = 1f / Mathf.Max(_cellSize, 0.01f);
+        for (int i = 0; i < _ambient.Count; i++)
+        {
+            AmbientFish f = _ambient[i];
+            if (f == null || !f.Alive || !f.Cfg.schooling)
+                continue;
+
+            Vector3 p = f.Pos;
+            long key = CellKey(Mathf.FloorToInt(p.x * inv), Mathf.FloorToInt(p.z * inv));
+            if (!_grid.TryGetValue(key, out List<int> bucket))
+            {
+                bucket = _cellPool.Count > 0 ? _cellPool.Pop() : new List<int>(8);
+                _grid[key] = bucket;
+            }
+            bucket.Add(i);
+        }
+    }
+
+    private static long CellKey(int cx, int cz)
+    {
+        return ((long)(cx + 0x40000000) << 32) | (uint)(cz + 0x40000000);
+    }
+
+    /// <summary>
+    /// 同種の群れステア (結合 + 整列 + 分離) を水平ベクトルで返す。近傍は空間ハッシュで平均 O(1)。
+    /// </summary>
+    public Vector3 SchoolingForce(int selfIndex)
+    {
+        if (!_anySchooling || selfIndex < 0 || selfIndex >= _ambient.Count)
+            return Vector3.zero;
+
+        AmbientFish self = _ambient[selfIndex];
+        if (self == null || !self.Alive)
+            return Vector3.zero;
+
+        AmbientSpecies cfg = self.Cfg;
+        Vector3 pos = self.Pos;
+        float r2 = cfg.schoolRadius * cfg.schoolRadius;
+        float sepDist = cfg.separationDist;
+
+        Vector3 center = Vector3.zero;
+        Vector3 align = Vector3.zero;
+        Vector3 sep = Vector3.zero;
+        int count = 0;
+
+        float inv = 1f / Mathf.Max(_cellSize, 0.01f);
+        int cx = Mathf.FloorToInt(pos.x * inv);
+        int cz = Mathf.FloorToInt(pos.z * inv);
+
+        for (int gx = cx - 1; gx <= cx + 1; gx++)
+        {
+            for (int gz = cz - 1; gz <= cz + 1; gz++)
+            {
+                if (!_grid.TryGetValue(CellKey(gx, gz), out List<int> bucket))
+                    continue;
+
+                for (int k = 0; k < bucket.Count; k++)
+                {
+                    int j = bucket[k];
+                    if (j == selfIndex)
+                        continue;
+                    AmbientFish o = _ambient[j];
+                    if (o == null || !o.Alive || o.SpeciesIndex != self.SpeciesIndex)
+                        continue;
+
+                    Vector3 dP = o.Pos - pos;
+                    dP.y = 0f;
+                    float d2 = dP.x * dP.x + dP.z * dP.z;
+                    if (d2 > r2 || d2 < 1e-4f)
+                        continue;
+
+                    center += o.Pos;
+                    align += o.Fwd;
+                    count++;
+
+                    float d = Mathf.Sqrt(d2);
+                    if (d < sepDist)
+                        sep -= dP / d * ((sepDist - d) / sepDist);
+                }
+            }
+        }
+
+        if (count == 0)
+            return Vector3.zero;
+
+        Vector3 force = Vector3.zero;
+
+        Vector3 toCenter = center / count - pos;
+        toCenter.y = 0f;
+        if (toCenter.sqrMagnitude > 1e-4f)
+            force += toCenter.normalized * cfg.cohesion;
+
+        align.y = 0f;
+        if (align.sqrMagnitude > 1e-4f)
+            force += align.normalized * cfg.alignment;
+
+        force += sep * cfg.separation;
+        return force;
     }
 
     // ─────────────────────────────────────────────────────────────

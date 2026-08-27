@@ -6,11 +6,17 @@ using UnityEngine;
 /// あえて MonoBehaviour ではなくプレーンな C# クラスにしている。
 ///   ・魚システム全体で MonoBehaviour.Update は FishSystem.Update ただ 1 つ。
 ///     そこから List を tight ループで回して各 AmbientFish.Tick を呼ぶ。
-///   ・static レジストリ・近傍クエリ・FindObjectsOfType を一切使わない。
-///   → 1 匹あたり O(1)、全体 O(N)。誰かが後から Update を生やせない構造。
+///   ・近傍参照は FishSystem の空間ハッシュ経由 (平均 O(1))。総当たりループは無い。
+///   → 1 匹あたり O(1)、全体 O(N)。
 ///
 /// 骨のうねりはプレハブの Animator (ループクリップ) が担当し、
 /// ここでは Animator.speed を遊泳速度に比例させるだけ。
+///
+/// 種別の癖:
+///   ・swayAmplitude / swayPeriod … 進路に乗る横うねり (鯛 = 大きく S 字、マグロ = ほぼ直進)。
+///   ・turnSmoothTime / maxYawRate … 旋回の機敏さと慣性 (鯛 = 小回り、マグロ = 大回り)。
+///   ・schooling …            同種で群れる (鯛のみ)。
+///   ・bandInner/Outer, depthOffset, cruiseSpeed … 距離帯・深度・速度。
 ///
 /// 前進軸: モデルのローカル -X が正面 (_xplus 系)。cfg.modelYawOffset で進行方向へ合わせる。
 /// </summary>
@@ -19,6 +25,7 @@ public class AmbientFish
     private Transform _tf;
     private Animator _animator;
     private FishSystem.AmbientSpecies _cfg;
+    private int _speciesIndex;
 
     private float _heading, _targetHeading, _headingVel;
     private float _pitch, _targetPitch, _pitchVel;
@@ -26,13 +33,22 @@ public class AmbientFish
     private float _speed;
     private float _wanderSeed;
 
-    public Transform Tf => _tf;
+    private Vector3 _pos;    // フレームスナップショット (近傍参照用)
+    private Vector3 _fwd;
 
-    public void Init(Transform tf, Animator animator, FishSystem.AmbientSpecies cfg, float phaseSeed)
+    public Transform Tf => _tf;
+    public bool Alive => _tf != null;
+    public Vector3 Pos => _pos;
+    public Vector3 Fwd => _fwd;
+    public int SpeciesIndex => _speciesIndex;
+    public FishSystem.AmbientSpecies Cfg => _cfg;
+
+    public void Init(Transform tf, Animator animator, FishSystem.AmbientSpecies cfg, int speciesIndex, float phaseSeed)
     {
         _tf = tf;
         _animator = animator;
         _cfg = cfg;
+        _speciesIndex = speciesIndex;
 
         _heading = _targetHeading = tf.rotation.eulerAngles.y;
         _pitch = _targetPitch = 0f;
@@ -58,8 +74,8 @@ public class AmbientFish
         _speed = _cfg != null ? _cfg.cruiseSpeed : 1f;
     }
 
-    /// <summary>FishSystem.Update から毎フレーム 1 回。O(1)、近傍アクセス・ボーン計算なし。</summary>
-    public void Tick(float dt, Vector3 anchorPos)
+    /// <summary>FishSystem.Update から毎フレーム 1 回。O(1) (近傍は空間ハッシュ経由)。</summary>
+    public void Tick(float dt, Vector3 anchorPos, FishSystem sys, int selfIndex)
     {
         if (_tf == null)
             return;
@@ -94,13 +110,25 @@ public class AmbientFish
             }
         }
 
-        // ── 3. 深度キープ ──
+        // ── 3. 群れ (同種のみ・空間ハッシュ経由) ──
+        if (_cfg.schooling && sys != null)
+        {
+            Vector3 sf = sys.SchoolingForce(selfIndex);
+            float mag = sf.magnitude;
+            if (mag > 1e-3f)
+            {
+                float schoolYaw = Mathf.Atan2(sf.x, sf.z) * Mathf.Rad2Deg;
+                _targetHeading = Mathf.LerpAngle(_targetHeading, schoolYaw, Mathf.Clamp01(mag));
+            }
+        }
+
+        // ── 4. 深度キープ ──
         float targetY = anchorPos.y + _cfg.depthOffset;
         float yErr = targetY - pos.y;
         float depthPitch = Mathf.Clamp(-yErr * 10f, -_cfg.maxPitchAngle, _cfg.maxPitchAngle);
         _targetPitch = Mathf.Lerp(0f, depthPitch, _cfg.depthPull);
 
-        // ── 4. なめらか追従 (レート制限) ──
+        // ── 5. なめらか追従 (レート制限 = 旋回の慣性) ──
         float prevHeading = _heading;
         _heading = Mathf.SmoothDampAngle(_heading, _targetHeading, ref _headingVel,
                                          _cfg.turnSmoothTime, _cfg.maxYawRate, dt);
@@ -108,18 +136,27 @@ public class AmbientFish
                                        _cfg.turnSmoothTime, _cfg.maxPitchRate, dt);
         _pitch = Mathf.Clamp(_pitch, -_cfg.maxPitchAngle, _cfg.maxPitchAngle);
 
-        // ── 5. 見た目バンク ──
+        // ── 6. 見た目バンク ──
         float yawRate = Mathf.DeltaAngle(prevHeading, _heading) / Mathf.Max(dt, 1e-4f);
         float targetRoll = Mathf.Clamp(-yawRate / Mathf.Max(_cfg.maxYawRate, 1e-3f), -1f, 1f) * _cfg.maxBankAngle;
         _roll = Mathf.SmoothDampAngle(_roll, targetRoll, ref _rollVel, 0.4f);
 
-        // ── 6. 位置・姿勢の適用 ──
-        Vector3 dir = Quaternion.Euler(_pitch, _heading, 0f) * Vector3.forward;
-        _tf.SetPositionAndRotation(
-            pos + dir * (_speed * dt),
-            Quaternion.LookRotation(dir, Vector3.up) * Quaternion.Euler(0f, _cfg.modelYawOffset, _roll));
+        // ── 7. 進路に乗る横うねり (見た目のみ。進行方向には積分しない) ──
+        float sway = _cfg.swayAmplitude *
+                     Mathf.Sin(now * (Mathf.PI * 2f / Mathf.Max(_cfg.swayPeriod, 0.1f)) + _wanderSeed);
 
-        // ── 7. アニメ再生速度 ──
+        // ── 8. 位置・姿勢の適用 ──
+        Vector3 travel = Quaternion.Euler(_pitch, _heading, 0f) * Vector3.forward;
+        Vector3 look = Quaternion.Euler(_pitch, _heading + sway, 0f) * Vector3.forward;
+        Vector3 newPos = pos + travel * (_speed * dt);
+        _tf.SetPositionAndRotation(
+            newPos,
+            Quaternion.LookRotation(look, Vector3.up) * Quaternion.Euler(0f, _cfg.modelYawOffset, _roll));
+
+        _pos = newPos;
+        _fwd = travel;
+
+        // ── 9. アニメ再生速度 ──
         if (_animator != null)
         {
             _animator.speed = Mathf.Clamp(_speed / Mathf.Max(_cfg.cruiseSpeed, 0.01f),
@@ -133,5 +170,7 @@ public class AmbientFish
         _tf.SetPositionAndRotation(
             pos,
             Quaternion.LookRotation(dir, Vector3.up) * Quaternion.Euler(0f, _cfg.modelYawOffset, _roll));
+        _pos = pos;
+        _fwd = dir;
     }
 }
