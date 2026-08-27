@@ -57,6 +57,20 @@ public class FishSystem : MonoBehaviour
         [Tooltip("横うねりの周期 [s]。大きいほどゆったり。")]
         public float swayPeriod = 3f;
 
+        [Header("推進のリズム (蹴る → 滑空)")]
+        [Range(0f, 1f), Tooltip("前進速度の脈動。0 = 等速。")]
+        public float thrustPulse = 0.25f;
+        [Tooltip("尾ビートの周期 [s]。ベイククリップ長に合わせる。")]
+        public float beatPeriod = 0.7f;
+        [Range(0f, 1f), Tooltip("旋回中の減速。1 = 最大旋回で最低速。")]
+        public float turnSpeedPenalty = 0.4f;
+
+        [Header("近隣回避 (全種を対象)")]
+        [Tooltip("この距離以内の他個体 (種を問わず) を避ける [m]。0 で無効。")]
+        public float neighborAvoidDist = 0f;
+        [Range(0f, 3f), Tooltip("回避操舵の強さ。")]
+        public float neighborAvoidWeight = 1.2f;
+
         [Header("群れ (同種のみ)")]
         [Tooltip("群れる種か。鯛のみ true 想定。")]
         public bool schooling = false;
@@ -169,11 +183,14 @@ public class FishSystem : MonoBehaviour
     private int _phase;
     private int _totalWeight;
 
-    // 群れ用の均一空間ハッシュ (毎フレーム O(N) で再構築、近傍参照は平均 O(1))。
+    // 均一空間ハッシュ (毎フレーム O(N) で再構築、近傍参照は平均 O(1))。
+    // 群れ (同種) と近隣回避 (全種) の両方がこれを使う。
     private readonly Dictionary<long, List<int>> _grid = new Dictionary<long, List<int>>();
     private readonly Stack<List<int>> _cellPool = new Stack<List<int>>();
     private float _cellSize = 3f;
     private bool _anySchooling;
+    private bool _anyAvoid;
+    private bool _useGrid;
 
     public int AmbientCount => _ambient.Count;
     public int PollockCount => _pollocks.Count;
@@ -195,6 +212,7 @@ public class FishSystem : MonoBehaviour
 
         _totalWeight = 0;
         _anySchooling = false;
+        _anyAvoid = false;
         _cellSize = 3f;
         if (species != null)
         {
@@ -211,8 +229,14 @@ public class FishSystem : MonoBehaviour
                     _anySchooling = true;
                     _cellSize = Mathf.Max(_cellSize, s.schoolRadius);
                 }
+                if (s.neighborAvoidDist > 0f)
+                {
+                    _anyAvoid = true;
+                    _cellSize = Mathf.Max(_cellSize, s.neighborAvoidDist);
+                }
             }
         }
+        _useGrid = _anySchooling || _anyAvoid;
 
         SpawnAmbient(Mathf.Min(initialFishCount, maxFish));
 
@@ -230,8 +254,8 @@ public class FishSystem : MonoBehaviour
 
         Vector3 anchorPos = _anchor.position;
 
-        // 群れがある種を含むときだけ空間ハッシュを張り直す (O(N))。
-        if (_anySchooling)
+        // 群れ or 近隣回避を使う種がいるときだけ空間ハッシュを張り直す (O(N))。
+        if (_useGrid)
             RebuildGrid();
 
         // 唯一の O(N) tick。
@@ -344,7 +368,7 @@ public class FishSystem : MonoBehaviour
         fish.ResetState(_phase++);
     }
 
-    // ───────────────────────────── 群れ (空間ハッシュ) ─────────────────────────
+    // ─────────────────────── 近隣 (空間ハッシュ・全個体を格納) ───────────────────
     private void RebuildGrid()
     {
         foreach (List<int> bucket in _grid.Values)
@@ -358,7 +382,7 @@ public class FishSystem : MonoBehaviour
         for (int i = 0; i < _ambient.Count; i++)
         {
             AmbientFish f = _ambient[i];
-            if (f == null || !f.Alive || !f.Cfg.schooling)
+            if (f == null || !f.Alive)
                 continue;
 
             Vector3 p = f.Pos;
@@ -378,26 +402,38 @@ public class FishSystem : MonoBehaviour
     }
 
     /// <summary>
-    /// 同種の群れステア (結合 + 整列 + 分離) を水平ベクトルで返す。近傍は空間ハッシュで平均 O(1)。
+    /// 自セル + 水平 8 近傍を 1 回だけ走査して、群れ (同種の結合/整列/分離) と
+    /// 近隣回避 (全種) の水平ステアベクトルをまとめて返す。平均 O(1)。
     /// </summary>
-    public Vector3 SchoolingForce(int selfIndex)
+    public void NeighborSteer(int selfIndex, out Vector3 school, out Vector3 avoid)
     {
-        if (!_anySchooling || selfIndex < 0 || selfIndex >= _ambient.Count)
-            return Vector3.zero;
+        school = Vector3.zero;
+        avoid = Vector3.zero;
+
+        if (!_useGrid || selfIndex < 0 || selfIndex >= _ambient.Count)
+            return;
 
         AmbientFish self = _ambient[selfIndex];
         if (self == null || !self.Alive)
-            return Vector3.zero;
+            return;
 
         AmbientSpecies cfg = self.Cfg;
         Vector3 pos = self.Pos;
-        float r2 = cfg.schoolRadius * cfg.schoolRadius;
+
+        bool wantSchool = cfg.schooling;
+        bool wantAvoid = cfg.neighborAvoidDist > 0f;
+        if (!wantSchool && !wantAvoid)
+            return;
+
+        float schoolR2 = cfg.schoolRadius * cfg.schoolRadius;
         float sepDist = cfg.separationDist;
+        float avoidDist = cfg.neighborAvoidDist;
+        float avoidR2 = avoidDist * avoidDist;
 
         Vector3 center = Vector3.zero;
         Vector3 align = Vector3.zero;
-        Vector3 sep = Vector3.zero;
-        int count = 0;
+        Vector3 schoolSep = Vector3.zero;
+        int schoolCount = 0;
 
         float inv = 1f / Mathf.Max(_cellSize, 0.01f);
         int cx = Mathf.FloorToInt(pos.x * inv);
@@ -416,42 +452,49 @@ public class FishSystem : MonoBehaviour
                     if (j == selfIndex)
                         continue;
                     AmbientFish o = _ambient[j];
-                    if (o == null || !o.Alive || o.SpeciesIndex != self.SpeciesIndex)
+                    if (o == null || !o.Alive)
                         continue;
 
                     Vector3 dP = o.Pos - pos;
                     dP.y = 0f;
                     float d2 = dP.x * dP.x + dP.z * dP.z;
-                    if (d2 > r2 || d2 < 1e-4f)
+                    if (d2 < 1e-4f)
                         continue;
-
-                    center += o.Pos;
-                    align += o.Fwd;
-                    count++;
-
                     float d = Mathf.Sqrt(d2);
-                    if (d < sepDist)
-                        sep -= dP / d * ((sepDist - d) / sepDist);
+
+                    // 近隣回避 (種を問わない)
+                    if (wantAvoid && d2 < avoidR2)
+                        avoid -= dP / d * ((avoidDist - d) / avoidDist);
+
+                    // 群れ (同種のみ)
+                    if (wantSchool && o.SpeciesIndex == self.SpeciesIndex && d2 < schoolR2)
+                    {
+                        center += o.Pos;
+                        align += o.Fwd;
+                        schoolCount++;
+                        if (d < sepDist)
+                            schoolSep -= dP / d * ((sepDist - d) / sepDist);
+                    }
                 }
             }
         }
 
-        if (count == 0)
-            return Vector3.zero;
+        if (wantAvoid && avoid.sqrMagnitude > 1e-4f)
+            avoid = avoid.normalized * cfg.neighborAvoidWeight;
 
-        Vector3 force = Vector3.zero;
+        if (wantSchool && schoolCount > 0)
+        {
+            Vector3 toCenter = center / schoolCount - pos;
+            toCenter.y = 0f;
+            if (toCenter.sqrMagnitude > 1e-4f)
+                school += toCenter.normalized * cfg.cohesion;
 
-        Vector3 toCenter = center / count - pos;
-        toCenter.y = 0f;
-        if (toCenter.sqrMagnitude > 1e-4f)
-            force += toCenter.normalized * cfg.cohesion;
+            align.y = 0f;
+            if (align.sqrMagnitude > 1e-4f)
+                school += align.normalized * cfg.alignment;
 
-        align.y = 0f;
-        if (align.sqrMagnitude > 1e-4f)
-            force += align.normalized * cfg.alignment;
-
-        force += sep * cfg.separation;
-        return force;
+            school += schoolSep * cfg.separation;
+        }
     }
 
     // ─────────────────────────────────────────────────────────────

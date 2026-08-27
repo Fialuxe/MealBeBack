@@ -246,9 +246,14 @@ public void EmitPollockFromMouth() {
 | `depthOffset` | 0 | 1 | 1.5 |
 | `maxYawRate` / `turnSmoothTime` | 40 / 0.35（小回り） | 30 / 0.6 | 18 / 1.4（大回り・慣性大） |
 | `swayAmplitude` / `swayPeriod` | 7 / 2.6（S 字強め） | 4 / 3 | 1.5 / 4（ほぼ直進） |
-| `schooling` ほか | true, `schoolRadius 4`, `cohesion 0.3`, `alignment 0.45`, `separation 1.0` | false | false |
+| `thrustPulse` / `beatPeriod` | 0.3 / 0.62 | 0.25 / 0.83 | 0.4 / 0.62（蹴る→滑空が強い） |
+| `turnSpeedPenalty` | 0.35 | 0.4 | 0.5 |
+| `neighborAvoidDist` / `Weight`（全種回避）| 1.0 / 1.0 | 1.6 / 1.2 | 2.2 / 1.4 |
+| `schooling` ほか | true, `schoolRadius 4`, `cohesion 0.3`, `alignment 0.45`, `separation 1.0`, `separationDist 1.3` | false | false |
 
-クリップ側の体型差（carangiform / thunniform）は `FishBuildTool.Species` の `ampKeys` / `phaseLagTotal` / `bendAngleDeg` に反映済み。
+- 体型差（carangiform / thunniform）と尾びれのしなりは `FishBuildTool.Species` に旧 `*Swim` の実値で反映（鯛 `bone_0..8`、ツナ `bone_1..7`+尾びれ`bone_8/9`、マグロ **`bone_5..8` のみ**+ヒレ`bone_3/4/1`）。
+- `thrustPulse`（前進速度の脈動＝蹴る→滑空）と `turnSpeedPenalty`（旋回中の減速）は `AmbientFish` が locomotion 側で適用。Animator.speed には脈動を渡さない（尾振りの周期は一定）。
+- `neighborAvoidDist > 0` の種があると空間ハッシュが**全個体**を格納し毎フレーム再構築（それでも O(N)、近傍参照は平均 O(1)）。異種どうしのすり抜けを防ぐ。群れ（同種）と回避（全種）は 1 回のグリッド走査（`NeighborSteer`）で同時に取る。
 
 ### 群れ（`schooling` 種のみ・O(N)）
 
@@ -350,7 +355,8 @@ Assets/Resources/prefabs/fish/     (新規フォルダ。FishBuildTool が生成
   | 1 | tuna | `Assets/Resources/prefabs/fish/Tuna.prefab` | `weight 1`, `cruiseSpeed 1.4`, `bandInner 8`, `bandOuter 20`, `depthOffset 1`, `maxYawRate 30`, `turnSmoothTime 0.6`, `swayAmplitude 4`, `swayPeriod 3`, `schooling ✘` |
   | 2 | bluefin | `Assets/Resources/prefabs/fish/Bluefin.prefab` | `weight 1`, `cruiseSpeed 1.9`, `bandInner 11`, `bandOuter 24`, `depthOffset 1.5`, `maxYawRate 18`, `turnSmoothTime 1.4`, `swayAmplitude 1.5`, `swayPeriod 4`, `schooling ✘` |
 
-  3種とも `modelYawOffset 90`（再生時に符号確認）。
+  `thrustPulse` / `turnSpeedPenalty` / `neighborAvoidDist` を含む種別プリセットの全体は
+  §「種別の癖」の表を参照。3種とも `modelYawOffset 90`（再生時に符号確認）。
 - `maxFish 40`, `initialFishCount 18`, `spawnRingMin/Max 6/14`, `spawnDepthMin/Max -3/2`
 - `pollockPrefab` → `Assets/Resources/prefabs/AlaskaPollok.prefab`
 - `maxPollock 12`、emerge 系は既定、`pollockWanderRadius 6`

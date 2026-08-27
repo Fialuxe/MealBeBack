@@ -83,9 +83,15 @@ public class AmbientFish
         Vector3 pos = _tf.position;
         float now = Time.time;
 
-        // ── 速度 (Perlin ゆらぎ) ──
+        // ── 速度: 巡航 × Perlin ゆらぎ (= アニメ速度の基準) → × 推進脈動 (蹴る → 滑空) ──
         float sN = Mathf.PerlinNoise(_wanderSeed * 0.5f, now * 0.2f) * 2f - 1f;
-        _speed = _cfg.cruiseSpeed * (1f + sN * _cfg.speedVariation);
+        float baseSpeed = _cfg.cruiseSpeed * (1f + sN * _cfg.speedVariation);
+        _speed = baseSpeed;
+        if (_cfg.thrustPulse > 0f)
+        {
+            float beat = now * (Mathf.PI * 2f / Mathf.Max(_cfg.beatPeriod, 0.05f)) * 2f + _wanderSeed;
+            _speed *= Mathf.Max(0.1f, 1f + _cfg.thrustPulse * Mathf.Sin(beat));
+        }
 
         // ── 1. 徘徊 (Perlin: 連続関数なので急変しない) ──
         float n = Mathf.PerlinNoise(_wanderSeed + now * _cfg.wanderNoiseSpeed, 0.137f) * 2f - 1f;
@@ -110,15 +116,24 @@ public class AmbientFish
             }
         }
 
-        // ── 3. 群れ (同種のみ・空間ハッシュ経由) ──
-        if (_cfg.schooling && sys != null)
+        // ── 3. 近隣 (回避 = 全種 / 群れ = 同種)。空間ハッシュを 1 回走査。 ──
+        if (sys != null && (_cfg.schooling || _cfg.neighborAvoidDist > 0f))
         {
-            Vector3 sf = sys.SchoolingForce(selfIndex);
-            float mag = sf.magnitude;
-            if (mag > 1e-3f)
+            sys.NeighborSteer(selfIndex, out Vector3 school, out Vector3 avoid);
+
+            // 回避が最優先。
+            float am = avoid.magnitude;
+            if (am > 1e-3f)
             {
-                float schoolYaw = Mathf.Atan2(sf.x, sf.z) * Mathf.Rad2Deg;
-                _targetHeading = Mathf.LerpAngle(_targetHeading, schoolYaw, Mathf.Clamp01(mag));
+                float avoidYaw = Mathf.Atan2(avoid.x, avoid.z) * Mathf.Rad2Deg;
+                _targetHeading = Mathf.LerpAngle(_targetHeading, avoidYaw, Mathf.Clamp01(am));
+            }
+
+            float sm = school.magnitude;
+            if (sm > 1e-3f)
+            {
+                float schoolYaw = Mathf.Atan2(school.x, school.z) * Mathf.Rad2Deg;
+                _targetHeading = Mathf.LerpAngle(_targetHeading, schoolYaw, Mathf.Clamp01(sm) * 0.7f);
             }
         }
 
@@ -136,10 +151,14 @@ public class AmbientFish
                                        _cfg.turnSmoothTime, _cfg.maxPitchRate, dt);
         _pitch = Mathf.Clamp(_pitch, -_cfg.maxPitchAngle, _cfg.maxPitchAngle);
 
-        // ── 6. 見た目バンク ──
+        // ── 6. 見た目バンク + 旋回中の減速 ──
         float yawRate = Mathf.DeltaAngle(prevHeading, _heading) / Mathf.Max(dt, 1e-4f);
+        float turnRatio = Mathf.Clamp01(Mathf.Abs(yawRate) / Mathf.Max(_cfg.maxYawRate, 1e-3f));
         float targetRoll = Mathf.Clamp(-yawRate / Mathf.Max(_cfg.maxYawRate, 1e-3f), -1f, 1f) * _cfg.maxBankAngle;
         _roll = Mathf.SmoothDampAngle(_roll, targetRoll, ref _rollVel, 0.4f);
+
+        if (_cfg.turnSpeedPenalty > 0f)
+            _speed *= Mathf.Lerp(1f, 1f - _cfg.turnSpeedPenalty, turnRatio);
 
         // ── 7. 進路に乗る横うねり (見た目のみ。進行方向には積分しない) ──
         float sway = _cfg.swayAmplitude *
@@ -156,10 +175,10 @@ public class AmbientFish
         _pos = newPos;
         _fwd = travel;
 
-        // ── 9. アニメ再生速度 ──
+        // ── 9. アニメ再生速度 (脈動は含めない基準速度で。尾振りは動かない周期のまま) ──
         if (_animator != null)
         {
-            _animator.speed = Mathf.Clamp(_speed / Mathf.Max(_cfg.cruiseSpeed, 0.01f),
+            _animator.speed = Mathf.Clamp(baseSpeed / Mathf.Max(_cfg.cruiseSpeed, 0.01f),
                                           _cfg.animSpeedMin, _cfg.animSpeedMax);
         }
     }
