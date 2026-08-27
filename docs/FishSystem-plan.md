@@ -251,7 +251,10 @@ public void EmitPollockFromMouth() {
 | `neighborAvoidDist` / `Weight`（全種回避）| 1.0 / 1.0 | 1.6 / 1.2 | 2.2 / 1.4 |
 | `schooling` ほか | true, `schoolRadius 4`, `cohesion 0.3`, `alignment 0.45`, `separation 1.0`, `separationDist 1.3` | false | false |
 
-- 体型差（carangiform / thunniform）と尾びれのしなりは `FishBuildTool.Species` に旧 `*Swim` の実値で反映（鯛 `bone_0..8`、ツナ `bone_1..7`+尾びれ`bone_8/9`、マグロ **`bone_5..8` のみ**+ヒレ`bone_3/4/1`）。
+- 体型差（carangiform / thunniform）と尾びれのしなりは `FishBuildTool.Species` に旧 `*Swim` の実値で反映（鯛 `bone_0..8`、ツナ `bone_1..7`+尾びれ`bone_8/9`、マグロ **`bone_5..8` のみ**）。
+  マグロは thunniform なのでヒレを別立てしない。旧 `BluefinSwim.finBoneNames` には
+  頭ボーン `bone_1` が混ざっており、そのまま移植したところ頭が左右に振れたため除外した
+  （GLB のモデル空間 +X = 前方: `bone_2` 吻先端 / `bone_1` 頭 / `bone_3`,`bone_4` 左右の胸ビレ）。
 - `thrustPulse`（前進速度の脈動＝蹴る→滑空）と `turnSpeedPenalty`（旋回中の減速）は `AmbientFish` が locomotion 側で適用。Animator.speed には脈動を渡さない（尾振りの周期は一定）。
 - `neighborAvoidDist > 0` の種があると空間ハッシュが**全個体**を格納し毎フレーム再構築（それでも O(N)、近傍参照は平均 O(1)）。異種どうしのすり抜けを防ぐ。群れ（同種）と回避（全種）は 1 回のグリッド走査（`NeighborSteer`）で同時に取る。
 
