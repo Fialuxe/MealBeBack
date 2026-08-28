@@ -141,10 +141,22 @@ AmbientFish (プレーン C# クラス、MonoBehaviour ではない)
 ### 公開 API
 
 ```
-public void EmitPollockFromMouth();   // 正解時に QuizManager から呼ぶ唯一の窓口
-public int  SpawnAmbient(int count);  // 実際に増えた数（maxFish でクランプ）
+// --- 段階進行 / クイズ連携 (#31。QuizManager への配線は #35) ---
+public void OnCorrect();              // 次の段階の魚を追加（段階進行）
+public void OnIncorrect();            // 挙動未確定 (#31)。現状ログのみ
+public void ResetToInitial();         // 追加分を退避し初期状態へ戻す
+public void PlayMouthBurst();         // 口出し演出。EmitPollockFromMouth のエイリアス
+public int  FishCount     { get; }    // = AmbientCount
+public int  PhaseIndex    { get; }
+public bool AllPhasesDone { get; }
+// --- 既存 ---
+public void EmitPollockFromMouth();   // 口出し演出の実体
+public int  SpawnAmbient(int count);  // 実際に増えた数（maxFish でクランプ・重み付き種選択）
 public int  AmbientCount { get; }
 public int  PollockCount { get; }
+
+// 段階進行データ: [System.Serializable] class ProgressionPhase { string label; int[] addPerSpecies; }
+//               を Inspector 配列 phases で持つ（既定 7 段階）。repeatLastPhase / phaseSpawnInterval も Inspector。
 ```
 
 ### 内部構造

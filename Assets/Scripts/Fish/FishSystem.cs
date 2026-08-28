@@ -103,6 +103,21 @@ public class FishSystem : MonoBehaviour
     }
 
     // ─────────────────────────────────────────────────────────────
+    /// <summary>
+    /// 段階進行の 1 段階。OnCorrect のたびに次の段階の魚を追加する。
+    /// addPerSpecies は species[] と同じ並び。長さが違ってもはみ出し分は無視。
+    /// </summary>
+    [System.Serializable]
+    public class ProgressionPhase
+    {
+        [Tooltip("Inspector 用のメモ (例: マグロ登場)。")]
+        public string label;
+
+        [Tooltip("この段階で追加する匹数。要素 i = species[i]。")]
+        public int[] addPerSpecies;
+    }
+
+    // ─────────────────────────────────────────────────────────────
     [Header("ユーザー基準点")]
     [SerializeField]
     [Tooltip("XR rig の Main Camera 直下に置いた空 GameObject。必須。")]
@@ -134,6 +149,28 @@ public class FishSystem : MonoBehaviour
 
     [SerializeField]
     private float spawnDepthMax = 2f;
+
+    [Header("段階進行 (QuizManager 用)")]
+    [SerializeField]
+    [Tooltip("OnCorrect のたびに 1 段階ずつ進む。空だと OnCorrect は何もしない。")]
+    private ProgressionPhase[] phases =
+    {
+        new ProgressionPhase { label = "鯛が2匹合流",       addPerSpecies = new[] { 2, 0, 0 } },
+        new ProgressionPhase { label = "鯛が2匹合流",       addPerSpecies = new[] { 2, 0, 0 } },
+        new ProgressionPhase { label = "ツナ登場 (+鯛1)",    addPerSpecies = new[] { 1, 1, 0 } },
+        new ProgressionPhase { label = "鯛2・ツナ1",         addPerSpecies = new[] { 2, 1, 0 } },
+        new ProgressionPhase { label = "マグロ登場",         addPerSpecies = new[] { 0, 0, 1 } },
+        new ProgressionPhase { label = "ツナ1・マグロ1",      addPerSpecies = new[] { 1, 0, 1 } },
+        new ProgressionPhase { label = "大群 (鯛3・ツナ1)",   addPerSpecies = new[] { 3, 1, 0 } },
+    };
+
+    [SerializeField]
+    [Tooltip("最終段階に到達後、OnCorrect でさらに最終段階を繰り返すか。問題数と phases 数を厳密に合わせるなら false。")]
+    private bool repeatLastPhase = true;
+
+    [SerializeField, Min(0f)]
+    [Tooltip("段階スポーンを 1 匹ずつずらす間隔 (秒)。0 で即時。")]
+    private float phaseSpawnInterval = 0.15f;
 
     [Header("スケトウダラ (口から)")]
     [SerializeField]
@@ -180,8 +217,15 @@ public class FishSystem : MonoBehaviour
 
     private Transform _anchor;
     private Transform _fishParent;
-    private int _phase;
+    private int _phase;          // スポーン命名 / wanderSeed 用のシードカウンタ。段階進行は _phaseIndex。
     private int _totalWeight;
+
+    // 段階進行 (QuizManager 用)。_phase とは無関係。
+    private int _phaseIndex;
+    private Coroutine _phaseCo;                 // 進行中の段階スポーン。StopAllCoroutines は使わない。
+    private int _phaseToken;                    // 段階コルーチンの世代。古い世代の後始末が新しい _phaseCo を壊さないため。
+    private Stack<GameObject>[] _ambientPool;   // 種別ごとの環境魚プール (SetActive(false) で退避)。
+    private readonly List<int> _spawnQueue = new List<int>();
 
     // 均一空間ハッシュ (毎フレーム O(N) で再構築、近傍参照は平均 O(1))。
     // 群れ (同種) と近隣回避 (全種) の両方がこれを使う。
@@ -194,6 +238,11 @@ public class FishSystem : MonoBehaviour
 
     public int AmbientCount => _ambient.Count;
     public int PollockCount => _pollocks.Count;
+
+    // #31 が要求する読み取り窓口。
+    public int  FishCount     => _ambient.Count;   // = AmbientCount。段階進行で増える環境魚の数。
+    public int  PhaseIndex    => _phaseIndex;
+    public bool AllPhasesDone => phases == null || phases.Length == 0 || _phaseIndex >= phases.Length;
 
     // ─────────────────────────────────────────────────────────────
     private void Awake()
@@ -237,6 +286,8 @@ public class FishSystem : MonoBehaviour
             }
         }
         _useGrid = _anySchooling || _anyAvoid;
+
+        _ambientPool = new Stack<GameObject>[species != null ? species.Length : 0];
 
         SpawnAmbient(Mathf.Min(initialFishCount, maxFish));
 
@@ -301,22 +352,81 @@ public class FishSystem : MonoBehaviour
             int speciesIndex = PickSpeciesIndex();
             if (speciesIndex < 0)
                 break;
-            AmbientSpecies cfg = species[speciesIndex];
-
-            GameObject go = Instantiate(cfg.prefab, _fishParent);
-            go.name = $"{cfg.prefab.name}_{_phase:000}";
-            PlaceOnSpawnRing(go.transform);
-
-            Animator animator = go.GetComponentInChildren<Animator>();
-            if (animator != null)
-                animator.cullingMode = AnimatorCullingMode.CullCompletely;
-
-            AmbientFish fish = new AmbientFish();
-            fish.Init(go.transform, animator, cfg, speciesIndex, _phase++);
-            _ambient.Add(fish);
+            SpawnOneOfSpecies(speciesIndex);
             done++;
         }
         return done;
+    }
+
+    /// <summary>
+    /// 種 speciesIndex の環境魚を 1 匹スポーン (プール優先)。maxFish 到達時は最古をその場でリサイクル。
+    /// 段階進行 (SpawnPhaseRoutine) と SpawnAmbient の共通経路。
+    /// </summary>
+    private void SpawnOneOfSpecies(int speciesIndex)
+    {
+        if (species == null || speciesIndex < 0 || speciesIndex >= species.Length)
+            return;
+        AmbientSpecies cfg = species[speciesIndex];
+        if (cfg == null || cfg.prefab == null)
+            return;
+
+        if (_ambient.Count >= maxFish)
+        {
+            if (_ambient.Count > 0)
+                RecycleOldestAmbient();
+            return;
+        }
+
+        GameObject go = RentAmbient(speciesIndex, cfg);
+        go.name = $"{cfg.prefab.name}_{_phase:000}";
+        PlaceOnSpawnRing(go.transform);
+
+        Animator animator = go.GetComponentInChildren<Animator>();
+        if (animator != null)
+            animator.cullingMode = AnimatorCullingMode.CullCompletely;
+
+        AmbientFish fish = new AmbientFish();
+        fish.Init(go.transform, animator, cfg, speciesIndex, _phase++);
+        _ambient.Add(fish);
+    }
+
+    // プールに種別 speciesIndex の待機個体があれば再利用、無ければ Instantiate。
+    private GameObject RentAmbient(int speciesIndex, AmbientSpecies cfg)
+    {
+        Stack<GameObject> pool =
+            _ambientPool != null && speciesIndex < _ambientPool.Length ? _ambientPool[speciesIndex] : null;
+        while (pool != null && pool.Count > 0)
+        {
+            GameObject g = pool.Pop();
+            if (g != null)
+            {
+                g.SetActive(true);
+                return g;
+            }
+        }
+        return Instantiate(cfg.prefab, _fishParent);
+    }
+
+    /// <summary>環境魚 1 匹を非アクティブにして種別プールへ返す。プール枠が無ければ Destroy。</summary>
+    private void ReleaseAmbient(AmbientFish fish)
+    {
+        if (fish == null || fish.Tf == null)
+            return;
+
+        int si = fish.SpeciesIndex;
+        GameObject go = fish.Tf.gameObject;
+        go.SetActive(false);
+
+        if (_ambientPool != null && si >= 0 && si < _ambientPool.Length)
+        {
+            if (_ambientPool[si] == null)
+                _ambientPool[si] = new Stack<GameObject>();
+            _ambientPool[si].Push(go);
+        }
+        else
+        {
+            Destroy(go);
+        }
     }
 
     private int PickSpeciesIndex()
@@ -497,9 +607,148 @@ public class FishSystem : MonoBehaviour
         }
     }
 
+    // ═════════════════════════ QuizManager 向け API (#31) ═════════════════════════
+    // QuizManager への配線は #35 で行う。ここでは窓口メソッドだけ用意する。
+
+    /// <summary>
+    /// クイズ正解時に呼ぶ。次の段階の魚を追加する (段階進行)。
+    /// 口出し演出 (PlayMouthBurst) とは別処理。
+    /// </summary>
+    public void OnCorrect()
+    {
+        if (phases == null || phases.Length == 0)
+        {
+            if (logEvents)
+                Debug.Log("[Fish] OnCorrect: phases 未設定のため何もしません。", this);
+            return;
+        }
+
+        int idx = _phaseIndex;
+        if (idx >= phases.Length)
+        {
+            if (!repeatLastPhase)
+            {
+                if (logEvents)
+                    Debug.Log("[Fish] OnCorrect: 全段階終了済み。", this);
+                return;
+            }
+            idx = phases.Length - 1;
+        }
+
+        ProgressionPhase phase = phases[idx];
+        _phaseIndex++;
+
+        if (_phaseCo != null)
+            StopCoroutine(_phaseCo);
+        _phaseCo = StartCoroutine(SpawnPhaseRoutine(phase, ++_phaseToken));
+
+        if (logEvents)
+            Debug.Log($"[Fish] OnCorrect: 段階 {idx} ({phase?.label}) \u2192 PhaseIndex {_phaseIndex}", this);
+    }
+
+    /// <summary>
+    /// クイズ不正解時に呼ぶ。挙動は未確定 (#31: 何もしない / 一時的に散らばる / 数匹減らす)。
+    /// 現状はログのみ。#35 で演出を決めたらここに実装する。
+    /// </summary>
+    public void OnIncorrect()
+    {
+        if (logEvents)
+            Debug.Log("[Fish] OnIncorrect: 現状は何もしません (挙動未確定 / #31)。", this);
+        // TODO(#31): 「散らばる」案などをここへ。
+    }
+
+    /// <summary>
+    /// クイズ開始時に呼ぶ。段階進行で増やした環境魚と口出しのスケトウダラを片付け、初期状態へ戻す。
+    /// </summary>
+    public void ResetToInitial()
+    {
+        // 進行中の段階スポーンだけ止める。StopAllCoroutines は EmergeRoutine を巻き込むので使わない。
+        if (_phaseCo != null)
+        {
+            StopCoroutine(_phaseCo);
+            _phaseCo = null;
+        }
+        _phaseToken++;   // 直前に自然終了した段階コルーチンが _phaseCo を触らないように。
+        _phaseIndex = 0;
+
+        // 口から出したスケトウダラを全回収。_pollockGen を消すと進行中の EmergeRoutine は
+        // IsStale 判定 (辞書に無い = stale) で自壊 (bail) する。
+        for (int i = 0; i < _pollocks.Count; i++)
+        {
+            AlaskaPollokController p = _pollocks[i];
+            if (p != null)
+            {
+                p.gameObject.SetActive(false);
+                _pollockPool.Push(p);
+            }
+        }
+        _pollocks.Clear();
+        _emerging.Clear();
+        _pollockGen.Clear();
+
+        // 環境魚を初期数まで減らす (新しく足したものから退避)。
+        int target = Mathf.Min(initialFishCount, maxFish);
+        while (_ambient.Count > target)
+        {
+            int last = _ambient.Count - 1;
+            ReleaseAmbient(_ambient[last]);
+            _ambient.RemoveAt(last);
+        }
+        if (_ambient.Count < target)
+            SpawnAmbient(target - _ambient.Count);
+
+        _recycleCursor = 0;
+
+        if (logEvents)
+            Debug.Log($"[Fish] ResetToInitial: 環境魚 {_ambient.Count} / スケトウダラ 0 / PhaseIndex 0", this);
+    }
+
+    /// <summary>
+    /// 口から生き物が飛び出す演出。段階進行とは別。<see cref="EmitPollockFromMouth"/> のエイリアス (#31 の名前)。
+    /// </summary>
+    public void PlayMouthBurst() => EmitPollockFromMouth();
+
+    // 段階 phase の追加数を 1 匹ずつのキューへ展開 → シャッフル → 間隔を空けてスポーン。
+    private IEnumerator SpawnPhaseRoutine(ProgressionPhase phase, int token)
+    {
+        _spawnQueue.Clear();
+        if (phase != null && phase.addPerSpecies != null && species != null)
+        {
+            int lim = Mathf.Min(phase.addPerSpecies.Length, species.Length);
+            for (int sp = 0; sp < lim; sp++)
+            {
+                int c = Mathf.Max(0, phase.addPerSpecies[sp]);
+                for (int k = 0; k < c; k++)
+                    _spawnQueue.Add(sp);
+            }
+        }
+
+        // Fisher-Yates (同種がまとまって湧かないよう順序をばらす)。
+        for (int i = _spawnQueue.Count - 1; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+            int tmp = _spawnQueue[i];
+            _spawnQueue[i] = _spawnQueue[j];
+            _spawnQueue[j] = tmp;
+        }
+
+        for (int i = 0; i < _spawnQueue.Count; i++)
+        {
+            SpawnOneOfSpecies(_spawnQueue[i]);
+            if (phaseSpawnInterval > 0f && i < _spawnQueue.Count - 1)
+                yield return new WaitForSeconds(phaseSpawnInterval);
+        }
+
+        if (_phaseToken == token)   // まだ自分の世代なら後始末。新しい OnCorrect が来ていれば触らない。
+            _phaseCo = null;
+
+        if (logEvents)
+            Debug.Log($"[Fish] 段階スポーン完了: 環境魚 {_ambient.Count} 匹 (+{_spawnQueue.Count})", this);
+    }
+
     // ─────────────────────────────────────────────────────────────
     /// <summary>
-    /// クイズ正解時に呼ぶ唯一の窓口。スケトウダラをユーザーの口から 1 匹出す。
+    /// スケトウダラをユーザーの口から 1 匹出す。口から出るのはスケトウダラのみ。
     /// </summary>
     public void EmitPollockFromMouth()
     {
@@ -695,5 +944,14 @@ public class FishSystem : MonoBehaviour
 
     [ContextMenu("Test: 環境魚 +1")]
     private void TestSpawnAmbient() => SpawnAmbient(1);
+
+    [ContextMenu("Test: 段階を1つ進める (OnCorrect)")]
+    private void TestOnCorrect() => OnCorrect();
+
+    [ContextMenu("Test: 不正解 (OnIncorrect)")]
+    private void TestOnIncorrect() => OnIncorrect();
+
+    [ContextMenu("Test: 初期状態へ戻す (ResetToInitial)")]
+    private void TestResetToInitial() => ResetToInitial();
 #endif
 }
