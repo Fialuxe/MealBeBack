@@ -232,7 +232,7 @@ public void EmitPollockFromMouth() {
   5. `SmoothDampAngle`（`turnSmoothTime` が旋回の慣性）で `_heading` / `_pitch` をレート制限追従
   6. 見た目バンク: `targetRoll = clamp(-yawRate/maxYawRate,±1)*maxBankAngle`; `SmoothDampAngle`
   7. 横うねり（見た目のみ・進路には積分しない）: `sway = swayAmplitude * sin(2π t/swayPeriod + seed)`
-  8. 適用: `travel = Euler(_pitch,_heading,0)*fwd`; `look = Euler(_pitch,_heading+sway,0)*fwd`; `rotation = LookRotation(look) * Euler(0, modelYawOffset, _roll)`; `pos += travel * _speed * dt`。`_pos`/`_fwd` をスナップショット
+  8. 適用: `travel = Euler(_pitch,_heading,0)*fwd`; `look = Euler(_pitch,_heading+sway,0)*fwd`; `rotation = LookRotation(look) * AngleAxis(_roll, fwd) * Euler(0, modelYawOffset, 0)`（_roll を進行軸まわりに分離。Euler にまとめると yaw 後の横軸へ回って擬似ピッチになる）; `pos += travel * _speed * dt`。`_pos`/`_fwd` をスナップショット
   9. `_animator.speed = clamp(_speed/cruiseSpeed, animSpeedMin, animSpeedMax)`（float 1 回）
 
 ### 種別の癖（「その魚らしい」泳ぎ）
