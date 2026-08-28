@@ -168,9 +168,13 @@ public class AmbientFish
         Vector3 travel = Quaternion.Euler(_pitch, _heading, 0f) * Vector3.forward;
         Vector3 look = Quaternion.Euler(_pitch, _heading + sway, 0f) * Vector3.forward;
         Vector3 newPos = pos + travel * (_speed * dt);
+        // ロールは「進行方向 (+Z) まわり」に適用してから modelYawOffset で -X 前進軸へ合わせる。
+        // Euler(0, yaw, roll) にまとめると roll が yaw 後の横軸まわり = ピッチとして効いてしまう。
         _tf.SetPositionAndRotation(
             newPos,
-            Quaternion.LookRotation(look, Vector3.up) * Quaternion.Euler(0f, _cfg.modelYawOffset, _roll));
+            Quaternion.LookRotation(look, Vector3.up)
+                * Quaternion.AngleAxis(_roll, Vector3.forward)
+                * Quaternion.Euler(0f, _cfg.modelYawOffset, 0f));
 
         _pos = newPos;
         _fwd = travel;
@@ -188,7 +192,9 @@ public class AmbientFish
         Vector3 dir = Quaternion.Euler(_pitch, _heading, 0f) * Vector3.forward;
         _tf.SetPositionAndRotation(
             pos,
-            Quaternion.LookRotation(dir, Vector3.up) * Quaternion.Euler(0f, _cfg.modelYawOffset, _roll));
+            Quaternion.LookRotation(dir, Vector3.up)
+                * Quaternion.AngleAxis(_roll, Vector3.forward)
+                * Quaternion.Euler(0f, _cfg.modelYawOffset, 0f));
         _pos = pos;
         _fwd = dir;
     }
