@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>
 /// 海の濁り（= Unity のフォグ）を一元管理するサブシステム。
@@ -66,13 +67,13 @@ public class FogSystem : MonoBehaviour
     private bool debugKeys = false;
 
     [SerializeField]
-    private KeyCode dirtierKey = KeyCode.PageDown;
+    private Key dirtierKey = Key.PageDown;
 
     [SerializeField]
-    private KeyCode cleanerKey = KeyCode.PageUp;
+    private Key cleanerKey = Key.PageUp;
 
     [SerializeField]
-    private KeyCode resetKey = KeyCode.Home;
+    private Key resetKey = Key.Home;
 
     private float _pollution01;
     private int _step;
@@ -102,14 +103,24 @@ public class FogSystem : MonoBehaviour
         if (!debugKeys)
             return;
 
-        if (Input.GetKeyDown(dirtierKey))
+        var keyboard = Keyboard.current;
+        if (keyboard == null)
+            return;
+
+        if (keyboard[dirtierKey].wasPressedThisFrame){
+            Debug.Log("[FogSystem] Dirtier");
             StepDirtier();
+        }
 
-        if (Input.GetKeyDown(cleanerKey))
+        if (keyboard[cleanerKey].wasPressedThisFrame){
+            Debug.Log("[FogSystem] Cleaner");
             StepCleaner();
+        }
 
-        if (Input.GetKeyDown(resetKey))
+        if (keyboard[resetKey].wasPressedThisFrame){
+            Debug.Log("[FogSystem] Reset");
             ResetToClean(stepDuration);
+        }
     }
 
     // ── QuizManager 向け API ─────────────────────────────────────────────────
