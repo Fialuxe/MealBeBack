@@ -1684,7 +1684,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c0c983a6e70e9b04885eb94528d82f46, type: 3}
   m_Name: ViveXRTracker Standalone
   m_EditorClassIdentifier: 
-  m_enabled: 1
+  m_enabled: 0
   nameUi: VIVE XR Tracker (Beta)
   version: 1.0.6
   featureIdInternal: vive.openxr.feature.xrtracker

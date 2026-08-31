@@ -92,6 +92,31 @@ public class ExperienceFlowController : MonoBehaviour
             return;
         }
 
+        // デバッグ：手持ち・口元・噛む/開く信号を順番に模擬
+        if (Keyboard.current.spaceKey.wasPressedThisFrame)
+        {
+            quizManager.AdvanceInstruction();
+            return;
+        }
+
+        // デバッグ：デバイスが完全にしぼんだ信号を模擬
+        if (Keyboard.current.fKey.wasPressedThisFrame)
+        {
+            quizManager.NotifyDeviceFullyDeflated();
+            return;
+        }
+
+        // デバッグ：Fish/Fog演出の完了後、次の問題へ進む
+        bool enterPressed =
+            Keyboard.current.enterKey.wasPressedThisFrame ||
+            Keyboard.current.numpadEnterKey.wasPressedThisFrame;
+
+        if (enterPressed)
+        {
+            quizManager.ContinueAfterFeedback();
+            return;
+        }
+
         // 仮：左の食品を食べた
         if (Keyboard.current.aKey.wasPressedThisFrame)
         {
