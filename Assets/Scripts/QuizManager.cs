@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 public class QuizManager : MonoBehaviour
@@ -39,6 +40,10 @@ public class QuizManager : MonoBehaviour
     [SerializeField]
     private FishSystem fishSystem;
 
+    [Header("Fog")]
+    [SerializeField]
+    private FogSystem fogSystem;
+
     [Header("Debug Score UI")]
     [SerializeField]
     private TMPro.TMP_Text scoreText;
@@ -49,6 +54,10 @@ public class QuizManager : MonoBehaviour
 
     [SerializeField]
     private TMPro.TMP_Text instructionText;
+
+    [Header("Feedback")]
+    [SerializeField]
+    private float feedbackDuration = 2.0f;
 
     [Header("Instruction Messages")]
     [SerializeField]
@@ -104,6 +113,11 @@ public class QuizManager : MonoBehaviour
         {
             fishSystem = FindAnyObjectByType<FishSystem>();
         }
+
+        if (fogSystem == null)
+        {
+            fogSystem = FindAnyObjectByType<FogSystem>();
+        }
     }
 
     public void StartQuiz()
@@ -119,6 +133,16 @@ public class QuizManager : MonoBehaviour
 
         score = 0;
         quizRunning = true;
+
+        if (fishSystem != null)
+        {
+            fishSystem.ResetToInitial();
+        }
+
+        if (fogSystem != null)
+        {
+            fogSystem.ResetToClean();
+        }
 
         ShowQuestion(0);
 
@@ -204,7 +228,8 @@ public class QuizManager : MonoBehaviour
 
         if (fishSystem != null)
         {
-            fishSystem.EmitPollockFromMouth();
+            fishSystem.OnCorrect();
+            fishSystem.PlayMouthBurst();
         }
         else
         {
@@ -222,6 +247,7 @@ public class QuizManager : MonoBehaviour
 
         // 2. 正解UIを表示する。
         ShowInstruction(correctMessage);
+        StartCoroutine(ContinueAfterFeedbackDelay());
 
         // 3. FishSystemを呼び、口元と体の周囲の演出を同時に開始する。
         // fishSystem.OnCorrect();
@@ -234,8 +260,21 @@ public class QuizManager : MonoBehaviour
             $"[Quiz] 不正解 Score = {score}"
         );
 
-        // TODO:
-        // 海が汚れる演出をここから呼ぶ
+        if (fishSystem != null)
+        {
+            fishSystem.OnIncorrect();
+        }
+
+        if (fogSystem != null)
+        {
+            fogSystem.StepDirtier();
+        }
+        else
+        {
+            Debug.LogWarning(
+                "[Quiz] FogSystem が設定されていません"
+            );
+        }
     }
 
     private void BeginIncorrectFeedback()
@@ -243,6 +282,7 @@ public class QuizManager : MonoBehaviour
         // 不正解時の実行順。
         // 1. 不正解UIを表示する。
         ShowInstruction(incorrectMessage);
+        StartCoroutine(ContinueAfterFeedbackDelay());
 
         // 2. FogSystemを呼び、海中を1段階汚す。
         // fishSystem.OnIncorrect();
@@ -532,6 +572,13 @@ public class QuizManager : MonoBehaviour
             scoreText.text =
                 $"Score : {score}";
         }
+    }
+
+    private IEnumerator ContinueAfterFeedbackDelay()
+    {
+        yield return new WaitForSeconds(feedbackDuration);
+
+        ContinueAfterFeedback();
     }
 
     // Issue #35 で FishSystem / FogSystem を接続するときの呼び出し位置。
