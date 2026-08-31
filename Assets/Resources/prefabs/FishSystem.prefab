@@ -1,0 +1,181 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &6590305051593606431
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2782984912013850460}
+  - component: {fileID: 2874135967296948593}
+  m_Layer: 0
+  m_Name: FishSystem
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2782984912013850460
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6590305051593606431}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.98130214, y: -9.139941, z: 32.36428}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2874135967296948593
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6590305051593606431}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d99dddf4299743540b35f186492efcaa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  headAnchor: {fileID: 0}
+  mouthLocalOffset: {x: 0, y: -0.02, z: -0.05}
+  species:
+  - label: Seabream
+    prefab: {fileID: 2543865665561058266, guid: 9cd5abfaa8c87eb46a9ed89907c787b2, type: 3}
+    weight: 3
+    cruiseSpeed: 0.8
+    speedVariation: 0.25
+    animSpeedMin: 0.35
+    animSpeedMax: 2.2
+    maxYawRate: 40
+    maxPitchRate: 18
+    turnSmoothTime: 0.35
+    maxPitchAngle: 25
+    maxBankAngle: 20
+    wanderYawAmplitude: 1
+    wanderNoiseSpeed: 0.15
+    swayAmplitude: 7
+    swayPeriod: 2.6
+    thrustPulse: 0.3
+    beatPeriod: 0.62
+    turnSpeedPenalty: 0.35
+    neighborAvoidDist: 1
+    neighborAvoidWeight: 1
+    schooling: 1
+    schoolRadius: 4
+    cohesion: 0.3
+    alignment: 0.45
+    separation: 1
+    separationDist: 1.3
+    bandInner: 4
+    bandOuter: 12
+    bandPull: 0.6
+    depthOffset: 0
+    depthPull: 0.4
+    modelYawOffset: 90
+  - label: Tuna
+    prefab: {fileID: 784805405338380473, guid: 4db2edbe6333f1d4d9f3e2b1d6171107, type: 3}
+    weight: 1
+    cruiseSpeed: 1.4
+    speedVariation: 0.25
+    animSpeedMin: 0.35
+    animSpeedMax: 2.2
+    maxYawRate: 30
+    maxPitchRate: 18
+    turnSmoothTime: 0.6
+    maxPitchAngle: 25
+    maxBankAngle: 20
+    wanderYawAmplitude: 1
+    wanderNoiseSpeed: 0.15
+    swayAmplitude: 4
+    swayPeriod: 3
+    thrustPulse: 0.25
+    beatPeriod: 0.83
+    turnSpeedPenalty: 0.4
+    neighborAvoidDist: 1.6
+    neighborAvoidWeight: 1.2
+    schooling: 0
+    schoolRadius: 4
+    cohesion: 0.3
+    alignment: 0.4
+    separation: 1
+    separationDist: 1.4
+    bandInner: 8
+    bandOuter: 20
+    bandPull: 0.6
+    depthOffset: 1
+    depthPull: 0.4
+    modelYawOffset: 90
+  - label: Bluefin
+    prefab: {fileID: 715013500502366470, guid: ef17368dfc2ee964594ab39d2ab65789, type: 3}
+    weight: 1
+    cruiseSpeed: 1.9
+    speedVariation: 0.25
+    animSpeedMin: 0.35
+    animSpeedMax: 2.2
+    maxYawRate: 18
+    maxPitchRate: 18
+    turnSmoothTime: 1.4
+    maxPitchAngle: 25
+    maxBankAngle: 20
+    wanderYawAmplitude: 1
+    wanderNoiseSpeed: 0.15
+    swayAmplitude: 1.5
+    swayPeriod: 4
+    thrustPulse: 0.4
+    beatPeriod: 0.62
+    turnSpeedPenalty: 0.5
+    neighborAvoidDist: 2.2
+    neighborAvoidWeight: 1.4
+    schooling: 0
+    schoolRadius: 4
+    cohesion: 0.3
+    alignment: 0.4
+    separation: 1
+    separationDist: 1.4
+    bandInner: 11
+    bandOuter: 24
+    bandPull: 0.6
+    depthOffset: 1.5
+    depthPull: 0.4
+    modelYawOffset: 90
+  maxFish: 40
+  initialFishCount: 18
+  spawnRingMin: 6
+  spawnRingMax: 14
+  spawnDepthMin: 0
+  spawnDepthMax: 2
+  phases:
+  - label: "\u9BDB\u304C2\u5339\u5408\u6D41"
+    addPerSpecies: 020000000000000000000000
+  - label: "\u9BDB\u304C2\u5339\u5408\u6D41"
+    addPerSpecies: 020000000000000000000000
+  - label: "\u30C4\u30CA\u767B\u5834 (+\u9BDB1)"
+    addPerSpecies: 010000000100000000000000
+  - label: "\u9BDB2\u30FB\u30C4\u30CA1"
+    addPerSpecies: 020000000100000000000000
+  - label: "\u30DE\u30B0\u30ED\u767B\u5834"
+    addPerSpecies: 000000000000000001000000
+  - label: "\u30C4\u30CA1\u30FB\u30DE\u30B0\u30ED1"
+    addPerSpecies: 010000000000000001000000
+  - label: "\u5927\u7FA4 (\u9BDB3\u30FB\u30C4\u30CA1)"
+    addPerSpecies: 030000000100000000000000
+  repeatLastPhase: 1
+  phaseSpawnInterval: 0.15
+  pollockPrefab: {fileID: 8073913253265801487, guid: 33d35ec71478e1c44a8a0a116edb17db, type: 3}
+  maxPollock: 12
+  emergeRollAngle: 90
+  emergeSpeed: 0.4
+  emergeDistance: 0.7
+  emergeMinTime: 1.2
+  emergeSettleTime: 0.4
+  pollockWanderRadius: 6
+  logEvents: 1
+  drawGizmos: 1

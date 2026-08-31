@@ -35,6 +35,10 @@ public class QuizManager : MonoBehaviour
     [SerializeField]
     private ExperienceFlowController gameFlow;
 
+    [Header("Fish")]
+    [SerializeField]
+    private FishSystem fishSystem;
+
     [Header("Debug Score UI")]
     [SerializeField]
     private TMPro.TMP_Text scoreText;
@@ -95,6 +99,11 @@ public class QuizManager : MonoBehaviour
         SetInstructionVisible(false);
         HideAllQuestions();
         UpdateScoreDisplay();
+
+        if (fishSystem == null)
+        {
+            fishSystem = FindAnyObjectByType<FishSystem>();
+        }
     }
 
     public void StartQuiz()
@@ -193,8 +202,16 @@ public class QuizManager : MonoBehaviour
             $"[Quiz] 正解！ Score = {score}"
         );
 
-        // TODO:
-        // 口から生き物が飛び出す演出をここから呼ぶ
+        if (fishSystem != null)
+        {
+            fishSystem.EmitPollockFromMouth();
+        }
+        else
+        {
+            Debug.LogWarning(
+                "[Quiz] FishSystem が設定されていません"
+            );
+        }
     }
 
     private void BeginCorrectFeedback()
