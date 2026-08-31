@@ -21,11 +21,11 @@ MonoBehaviour:
   poseUpdateMode: 8
   activateFirstActionSetOnStart: 1
   editorAppKey: application.generated.unity.mealbeback.exe
-  autoEnableVR: 1
+  autoEnableVR: 0
   legacyMixedRealityCamera: 1
   mixedRealityCameraPose:
-    actionPath: /actions//in/ExternalCamera
-    needsReinit: 1
+    actionPath: /actions/mixedreality/in/ExternalCamera
+    needsReinit: 0
   mixedRealityCameraInputSource: 11
   mixedRealityActionSetAutoEnable: 1
   previewHandLeft: {fileID: 0}
