@@ -1,23 +1,42 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public enum UserChoice { idle, left, right }
-public enum WindowType { idle, chewing, notChewing }
+public enum UserChoice { idle, bridge1, bridge2 }
+public enum DeviceMode { idle, fill, suck }
 
 public class SerialPortManager : MonoBehaviour
 {
+    private readonly int MES_MAX = 2;
+    
     [Header("UserAnswer")]
     public UserChoice userChoice = UserChoice.idle;
     public bool isCorrect = false;
-
-    [Header("WindowType")]
-    public WindowType windowType = WindowType.idle;
 
     [Header("同じGameObjectにArduinoSerialBridgeを2つアタッチしてここへ割り当て")]
     public ArduinoSerialBridge bridge1;
     public ArduinoSerialBridge bridge2; // 未使用ならInspectorでnullのまま
 
-    void OnEnable()
+    // create message from deviceMode
+    private DeviceMode deviceMode = DeviceMode.idle;
+    private Dictionary<DeviceMode, char> modeMes = new Dictionary<DeviceMode, char>()
+    {
+        {DeviceMode.idle, 'i' },
+        {DeviceMode.fill, 'f' },
+        {DeviceMode.suck, 's' }
+    };
+
+    private bool onGoing = false;
+    private int fillingRate = 0;
+
+    /*public struct SerialMessage {
+        public string mes1; // { onGoing, fillingRate }
+        public string mes2; // { otherwise }
+    };
+    public SerialMessage serialMessage;*/
+
+void OnEnable()
     {
         if (bridge1 != null) bridge1.OnLineReceived += OnLineFromBridge1;
         if (bridge2 != null) bridge2.OnLineReceived += OnLineFromBridge2;
@@ -38,27 +57,34 @@ public class SerialPortManager : MonoBehaviour
         }
     }
 
-    void OnLineFromBridge1(string line) => HandleLine(line);
-    void OnLineFromBridge2(string line) => HandleLine(line);
+    void OnLineFromBridge1(string line) => HandleLine(line, bridge1);
+    void OnLineFromBridge2(string line) => HandleLine(line, bridge2);
 
-    void HandleLine(string line)
+    void HandleLine(string line, ArduinoSerialBridge bridge)
     {
         Debug.Log($"[SerialPortManager] recv raw: \"{line}\"");
 
-        // 想定フォーマット: "a,b,windowType"
+        // 想定フォーマット: "onGoing, fillingRate"
         var parts = line.Split(',');
-        if (parts.Length < 3)
+        if (parts.Length < MES_MAX)
         {
             Debug.LogWarning($"[SerialPortManager] フィールド数不足 ({parts.Length}) のため無視: \"{line}\"");
             return;
         }
 
-        if (int.TryParse(parts[2].Trim(), out int w))
-            windowType = (WindowType)w;
+        if (int.TryParse(parts[0].Trim(), out int g))
+            onGoing = Convert.ToBoolean(g);
         else
-            Debug.LogWarning($"[SerialPortManager] windowType をパースできません: \"{parts[2]}\"");
+            Debug.LogWarning($"[SerialPortManager] onGoing を変換できません: \"{parts[0]}\"");
 
-        Debug.Log($"[SerialPortManager] recv: {line} -> windowType={windowType}");
+        if (int.TryParse(parts[1].Trim(), out int r))
+            if(r < 0 || r > 100)
+                Debug.LogWarning($"[SerialPortManager] fillingRate が範囲外です: {r}");
+            else 
+                fillingRate = r;
+        else Debug.LogWarning($"[SerialPortManager] fillingRate を変換できません: \"{parts[1]}\"");
+
+        Debug.Log($"[SerialPortManager] recv: {line} -> onGoing={onGoing},fillingRate={fillingRate}");
     }
 
     public void setUserChoice(UserChoice c)
@@ -66,17 +92,39 @@ public class SerialPortManager : MonoBehaviour
         userChoice = c;
     }
 
+    public void setDeviceMode(DeviceMode m)
+    {
+        deviceMode = m;
+    }
+
+    public void setFillingRate(int r)
+    {
+        fillingRate = r;
+    }
+
+    public DeviceMode getDeviceMode()
+    {
+        return deviceMode;
+    }
+
     public void WriteData()
     {
-        string data =
-            (int)userChoice + ","
-            + (isCorrect ? 1 : 0) + ","
-            + (int)windowType;
+        string data = $"{modeMes[deviceMode]},{fillingRate}";
 
         // SendLineはキューに積むだけで即座に返る（ここではブロックしない）
         Debug.Log("[SerialPort] write data:"+data);
-        bridge1?.SendLine(data);
-        bridge2?.SendLine(data);
+
+        if (userChoice == UserChoice.bridge1)
+        {
+            bridge1?.SendLine(data);
+        }
+        else if (userChoice == UserChoice.bridge2)
+        {
+            bridge2?.SendLine(data);
+        } else
+        {
+            Debug.LogWarning("デバイスが選択されていません");
+        }
     }
 
     void OnApplicationQuit()
