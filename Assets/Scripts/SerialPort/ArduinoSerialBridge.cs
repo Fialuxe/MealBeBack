@@ -14,7 +14,8 @@ public class ArduinoSerialBridge : MonoBehaviour
 {
     [Header("シリアル設定")]
     public string portName = "COM3";
-    public int baudRate = 115200;
+    // External/ 以下の Arduino スケッチ (arduino_mbb_v1 等) は全て 9600。既定を合わせる。
+    public int baudRate = 9600;
 
     [Header("デバッグ")]
     [Tooltip("受信した生の行をすべてConsoleに出す")]
