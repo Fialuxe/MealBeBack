@@ -77,6 +77,16 @@ public class ExperienceFlowController : MonoBehaviour
     {
         if (quizManager == null)
             return;
+        
+        bool enterPressed =
+            Keyboard.current.enterKey.wasPressedThisFrame ||
+            Keyboard.current.numpadEnterKey.wasPressedThisFrame;
+
+        if (enterPressed)
+        {
+            quizManager.AdvanceInstruction();
+            return;
+        }
 
         // デバッグ用：前の問題
         if (Keyboard.current.leftArrowKey.wasPressedThisFrame)
@@ -105,11 +115,6 @@ public class ExperienceFlowController : MonoBehaviour
             quizManager.NotifyDeviceFullyDeflated();
             return;
         }
-
-        // デバッグ：Fish/Fog演出の完了後、次の問題へ進む
-        bool enterPressed =
-            Keyboard.current.enterKey.wasPressedThisFrame ||
-            Keyboard.current.numpadEnterKey.wasPressedThisFrame;
 
         if (enterPressed)
         {

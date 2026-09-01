@@ -62,4 +62,14 @@ MonoBehaviour:
   - questionObject: {fileID: 0}
     correctAnswer: 0
   gameFlow: {fileID: 0}
+  fishSystem: {fileID: 0}
   scoreText: {fileID: 0}
+  instructionRoot: {fileID: 0}
+  instructionText: {fileID: 0}
+  chooseMessage: "\u3069\u3061\u3089\u304B\u3092\u53D6\u3063\u3066\u304F\u3060\u3055\u3044"
+  holdMessage: "\u624B\u306B\u6301\u3063\u3066\u304F\u3060\u3055\u3044"
+  bringToMouthMessage: "\u53E3\u5143\u3078\u904B\u3093\u3067\u304F\u3060\u3055\u3044"
+  biteMessage: "\u565B\u3093\u3067\u304F\u3060\u3055\u3044"
+  openMessage: "\u958B\u3044\u3066\u304F\u3060\u3055\u3044"
+  correctMessage: "\u6B63\u89E3\uFF01\u304A\u898B\u4E8B\uFF01"
+  incorrectMessage: "\u6B8B\u5FF5\uFF01\u4E0D\u6B63\u89E3\uFF01"
