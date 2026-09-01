@@ -44,6 +44,18 @@ public class QuizManager : MonoBehaviour
     [SerializeField]
     private FogSystem fogSystem;
 
+    [Header("Serial (デバイス制御)")]
+    [SerializeField]
+    private SerialSystem serialSystem;
+
+    [Tooltip("噛んだ信号を受けたときにデバイスを充填する率 (0-100)。")]
+    [SerializeField, Range(0, 100)]
+    private int inflatePercent = 100;
+
+    [Tooltip("開いた信号を受けたときにデバイスを吸引する率 (0-100)。")]
+    [SerializeField, Range(0, 100)]
+    private int deflatePercent = 100;
+
     [Header("Debug Score UI")]
     [SerializeField]
     private TMPro.TMP_Text scoreText;
@@ -88,6 +100,10 @@ public class QuizManager : MonoBehaviour
     private string incorrectMessage =
         "残念！不正解！";
 
+    // #45 ①: 本来はトラッカー位置から特定する。当面は KeyboardManager /
+    // ExperienceFlowController のキー入力 (G / H) で NotifyDeviceSelected 経由で設定する。
+    private SerialSystem.SerialDevice selectedDevice = SerialSystem.SerialDevice.None;
+
     private int currentQuestionIndex = -1;
     private int score = 0;
     private bool quizRunning = false;
@@ -102,6 +118,7 @@ public class QuizManager : MonoBehaviour
     public bool IsQuizRunning => quizRunning;
     public int CurrentQuestionIndex => currentQuestionIndex;
     public int Score => score;
+    public SerialSystem.SerialDevice SelectedDevice => selectedDevice;
 
     private void Start()
     {
@@ -118,6 +135,44 @@ public class QuizManager : MonoBehaviour
         {
             fogSystem = FindAnyObjectByType<FogSystem>();
         }
+
+        if (serialSystem == null)
+        {
+            serialSystem = FindAnyObjectByType<SerialSystem>();
+        }
+
+        if (serialSystem != null)
+        {
+            serialSystem.OnFullyDeflated += HandleDeviceFullyDeflated;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (serialSystem != null)
+        {
+            serialSystem.OnFullyDeflated -= HandleDeviceFullyDeflated;
+        }
+    }
+
+    /// <summary>
+    /// #45 ①: どちらのデバイス (トラッカー) を選んだかを通知する。
+    /// 当面はキー入力から呼ばれる。
+    /// </summary>
+    public void NotifyDeviceSelected(SerialSystem.SerialDevice device)
+    {
+        selectedDevice = device;
+        Debug.Log($"[Quiz] 使用デバイス = {device}");
+    }
+
+    // SerialSystem がデバイスの「停止 かつ 充填率 0」を検知したら呼ばれる。
+    private void HandleDeviceFullyDeflated(SerialSystem.SerialDevice device)
+    {
+        if (selectedDevice != SerialSystem.SerialDevice.None &&
+            device != selectedDevice)
+            return;
+
+        NotifyDeviceFullyDeflated();
     }
 
     public void StartQuiz()
@@ -142,6 +197,11 @@ public class QuizManager : MonoBehaviour
         if (fogSystem != null)
         {
             fogSystem.ResetToClean();
+        }
+
+        if (serialSystem != null)
+        {
+            serialSystem.StopAll();
         }
 
         ShowQuestion(0);
@@ -242,8 +302,8 @@ public class QuizManager : MonoBehaviour
     private void BeginCorrectFeedback()
     {
         // 正解時の実行順。
-        // 1. デバイスの膨張を開始する。
-        // serialPortManager.BeginInflation();
+        // 1. デバイスの充填/吸引は噛む/開く信号 (NotifyBiteDetected /
+        //    NotifyOpenDetected) 側で SerialSystem へ送っている。ここでは何もしない。
 
         // 2. 正解UIを表示する。
         ShowInstruction(correctMessage);
@@ -358,6 +418,13 @@ public class QuizManager : MonoBehaviour
     {
         quizRunning = false;
 
+        if (serialSystem != null)
+        {
+            serialSystem.StopAll();
+        }
+
+        selectedDevice = SerialSystem.SerialDevice.None;
+
         SetInstructionVisible(false);
         HideAllQuestions();
 
@@ -463,6 +530,9 @@ public class QuizManager : MonoBehaviour
         currentPhase = QuestionPhase.WaitingForOpen;
         ShowInstruction(openMessage);
 
+        // #45 ②: 噛んだらデバイスを膨らませる。
+        InflateDevice();
+
         Debug.Log("[Quiz] 噛んだ信号を受信");
     }
 
@@ -475,7 +545,38 @@ public class QuizManager : MonoBehaviour
         currentPhase = QuestionPhase.WaitingForBite;
         ShowInstruction(biteMessage);
 
+        // 口を開いたらデバイスを吸引してしぼませる。
+        // しぼみ切ると SerialSystem.OnFullyDeflated 経由で正誤判定へ進む。
+        DeflateDevice();
+
         Debug.Log("[Quiz] 開いた信号を受信");
+    }
+
+    private void InflateDevice()
+    {
+        if (serialSystem == null)
+            return;
+
+        if (selectedDevice == SerialSystem.SerialDevice.None)
+        {
+            Debug.LogWarning(
+                "[Quiz] デバイス未選択のため充填できません (G / H で選択)"
+            );
+            return;
+        }
+
+        serialSystem.Fill(selectedDevice, inflatePercent);
+    }
+
+    private void DeflateDevice()
+    {
+        if (serialSystem == null)
+            return;
+
+        if (selectedDevice == SerialSystem.SerialDevice.None)
+            return;
+
+        serialSystem.Suck(selectedDevice, deflatePercent);
     }
 
     public void NotifyDeviceFullyDeflated()
