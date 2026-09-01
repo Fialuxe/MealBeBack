@@ -29,8 +29,37 @@ public class ExperienceFlowController : MonoBehaviour
     [SerializeField]
     private QuizManager quizManager;
 
+    [Header("Input")]
+    [Tooltip("true: このクラスが直接キーボードを読む（従来動作）。" +
+        "false: KeyboardManager など外部からの呼び出しに任せる。")]
+    [SerializeField]
+    private bool handleKeyboardInput = true;
+
     private FlowState currentState = FlowState.Ready;
     private bool isLoading = false;
+
+    public bool IsReady => currentState == FlowState.Ready;
+    public bool IsQuiz => currentState == FlowState.Quiz;
+    public bool IsResult => currentState == FlowState.Result;
+    public bool IsBusy => isLoading;
+
+    /// <summary>Ready 状態ならクイズを開始する。KeyboardManager など外部入力から呼ぶ。</summary>
+    public void RequestStartQuiz()
+    {
+        if (isLoading || currentState != FlowState.Ready)
+            return;
+
+        StartQuiz();
+    }
+
+    /// <summary>Result 状態なら SetupScene へ戻る。KeyboardManager など外部入力から呼ぶ。</summary>
+    public void RequestReturnToSetup()
+    {
+        if (isLoading || currentState != FlowState.Result)
+            return;
+
+        ReturnToSetup();
+    }
 
     private void Start()
     {
@@ -39,6 +68,9 @@ public class ExperienceFlowController : MonoBehaviour
 
     private void Update()
     {
+        if (!handleKeyboardInput)
+            return;
+
         if (isLoading)
             return;
 
