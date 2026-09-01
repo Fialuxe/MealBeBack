@@ -1,17 +1,31 @@
 /*
-  このスクリプトは、Meal Be Backにて利用されるデバイスの制御のためのスクリプトです。
-  仕様については、https://github.com/Fialuxe/MealBeBack/issues/42 を確認してください。
+  Meal Be Back で利用するデバイス (充填 / 吸引) の制御スクリプト。
+  仕様: https://github.com/Fialuxe/MealBeBack/issues/42
   DRV8835 + Arduino <-> Unity 非ブロッキング制御
   ------------------------------------------------
-  Unity -> Arduino: "(<状態>,<率>)\n"
-    状態: 'f'=fill / 's'=suck / 'i'=invalid(全停止・率は無視)
-    率  : 0-100の整数。範囲外(負 or 100超)のf/sは丸ごと破棄する
-  Arduino -> Unity: "(<処理状態>,<currentInside>)\n"
-    処理状態: 1=ongoing(駆動中) / 0=available(停止中)
+  Unity -> Arduino : "(<状態>,<値>)\n"
+    'f' = 中の量を <値>% まで「増やす」 (既に <値> 以上なら何もしない)
+    's' = 中の量を <値>% まで「減らす」 (既に <値> 以下なら何もしない)
+    'c' = モーターを回さず currentInside を <値>% に設定する (状態同期用)
+    'i' = 即停止 (<値> は無視)
+    <値> : 0-100 の整数。範囲外の f / s / c は無視する。
+
+  Arduino -> Unity : "(<処理状態>,<currentInside>)\n"   (SEND_INTERVAL_MS ごと)
+    処理状態      : 1 = 駆動中 / 0 = 停止中
+    currentInside : 現在の充填率 0-100
+
+  起動直後は「デバイスは 100% 充填済み」を前提に currentInside = 100 で始まる。
+  実際の初期量が違う場合は Unity から "(c,<実量>)" を送って合わせる。
 
   Aチャンネル(AIN1/AIN2) = fillモーター(押す)
   Bチャンネル(BIN1/BIN2) = suckモーター(引く)
   MODE=LOW固定(PHASE/ENABLE) : IN1=PHASE(方向), IN2=ENABLE(有効/無効)
+
+  実装方針 (最小):
+    ・目標値との差 (%) ぶんだけモーターを回す時間を決めて回す (loop は止めない)。
+    ・時間に到達したら currentInside を目標値にして停止。
+    ・途中で別コマンドが来たら、進行中のぶんは反映せず新しい目標へ切り替える。
+      → 動作中に指令を重ねると currentInside と実物がズレる。idle((0,x)) を待ってから次を送ること。
 */
 
 // ==== ピン定義 ====
@@ -23,27 +37,23 @@ const int MODE = 4;   // PHASE/ENABLEモード固定
 
 // ==== 通信設定 ====
 const long BAUD_RATE = 9600;
+const unsigned long SEND_INTERVAL_MS = 50; // 状態送信の周期
 
-const unsigned long SEND_INTERVAL_MS = 100; //命令ごとに置かれるインターバル
-
-const size_t INPUT_BUFFER_MAX_LEN = 32; //入力バッファの最大長
-
-// ==== 1%あたりの駆動時間 ====
- 
-const unsigned long MS_PER_PERCENT = 50; // TODO 実際に測ってここを書く
+// ==== 1%あたりの駆動時間(実測して調整する) ====
+const unsigned long MS_PER_PERCENT = 10;
 
 // ==== 状態管理 ====
 enum MotorState { MOTOR_STOPPED, MOTOR_FILLING, MOTOR_SUCKING };
 
-int currentInside = 0; // 0-100。100%超の流入/0%未満の吸引を防止するための状態管理変数
-
 MotorState motorState = MOTOR_STOPPED;
-unsigned long actionStartMillis = 0;
-unsigned long actionDurationMs = 0;
-int actionStartInside = 0;
-int actionTargetDelta = 0; // 常に正の値。符号はmotorStateで判断
 
-String inputBuffer = "";
+int currentInside = 100;             // 0-100。アクション完了時のみ更新する
+int actionTargetInside = 0;          // 進行中アクション完了後の currentInside
+unsigned long actionStartMillis = 0; // 進行中アクションの開始時刻
+unsigned long actionDurationMs = 0;  // 進行中アクションの駆動時間
+
+char lineBuf[16];   // 受信行バッファ("(f,100)" が入れば十分)
+int lineLen = 0;
 unsigned long lastSendAt = 0;
 
 void setup() {
@@ -56,181 +66,135 @@ void setup() {
   pinMode(MODE, OUTPUT);
   digitalWrite(MODE, LOW);
 
-  disablePins();
+  stopMotors();
 }
 
 void loop() {
-  readFromUnity();
+  readSerial();
   updateMotion();
 
-  if (millis() - lastSendAt >= SEND_INTERVAL_MS) { //インターバルを経過していたら
+  if (millis() - lastSendAt >= SEND_INTERVAL_MS) {
     lastSendAt = millis();
-    sendToUnity();
+    sendStatus();
   }
 }
 
 // ============================================================
-// シリアル受信(非ブロッキング)
+// シリアル受信(非ブロッキング)。'\n' で 1 行確定
 // ============================================================
-void readFromUnity() {
+void readSerial() {
   while (Serial.available() > 0) {
     char c = (char)Serial.read();
 
     if (c == '\n') {
-      handleLine(inputBuffer);
-      inputBuffer = "";
-    } else if (c != '\r') {
-      inputBuffer += c;
-      if (inputBuffer.length() > INPUT_BUFFER_MAX_LEN) {
-        inputBuffer = ""; // 異常な長文はバッファごと破棄して継続
-      }
+      lineBuf[lineLen] = '\0';
+      handleLine(lineBuf);
+      lineLen = 0;
+    } else if (c == '\r') {
+      // 無視
+    } else if (lineLen < (int)sizeof(lineBuf) - 1) {
+      lineBuf[lineLen++] = c;
+    } else {
+      lineLen = 0; // 想定外に長い行はまるごと捨てて継続
     }
   }
 }
 
-// 期待フォーマット: "(f,40)" 。括弧・クォート・空白の揺れを許容する
-void handleLine(const String &rawLine) {
-  String line = rawLine; //バッファを壊さないためにコピー
-  line.trim(); //前後の空白・改行を削除
-  line.replace("(", ""); //()を削除
-  line.replace(")", "");
+// 期待フォーマット: "(f,80)" 。'(' は飛ばし、',' の後ろを数値として読む
+void handleLine(const char *line) {
+  const char *p = line;
+  if (*p == '(') p++;
 
-  int commaIdx = line.indexOf(',');
-  if (commaIdx < 0) return; // 不正な行は無視して継続
+  char cmd = *p;
+  const char *comma = strchr(p, ',');
+  if (comma == NULL) return;          // ',' が無い行は無視
 
-  String statePart = line.substring(0, commaIdx);//"f"とか
-  String ratePart = line.substring(commaIdx + 1);//"40"とか
+  int value = atoi(comma + 1);        // "80)" -> 80
 
-  statePart.trim();
-  statePart.replace("'", "");//'f'をfだけにする
-  statePart.replace("\"", "");//"f"をfだけにする
-  ratePart.trim();
-
-  if (statePart.length() == 0) return;
-
-  char state = statePart.charAt(0);
-  int rate = ratePart.toInt(); // 変換失敗時は0扱い
-
-  handleCommand(state, rate);
-}
-
-void handleCommand(char state, int rate) {
-  switch (state) {
+  switch (cmd) {
     case 'i':
-      stop(); // 率は無視。即座に全停止
+      stopMotors();
+      motorState = MOTOR_STOPPED;
+      break;
+
+    case 'c':
+      if (value < 0 || value > 100) return;
+      stopMotors();
+      motorState = MOTOR_STOPPED;
+      currentInside = value;          // モーターは回さず現在値だけ書き換える
       break;
 
     case 'f':
-      if (rate < 0 || rate > 100) return; // 範囲外は破棄
-      fill(rate);
+      if (value < 0 || value > 100) return;
+      moveToward(MOTOR_FILLING, value);
       break;
 
     case 's':
-      if (rate < 0 || rate > 100) return; // 範囲外は破棄
-      suck(rate);
+      if (value < 0 || value > 100) return;
+      moveToward(MOTOR_SUCKING, value);
       break;
 
     default:
-      return; // 未定義文字は無視
+      return; // 未定義コマンドは無視
   }
 }
 
 // ============================================================
-// 仕様に従い、percentだけfillを行う(100%超は自動的に切り詰め)
+// currentInside を target に近づける。
+// dir が示す向き (FILLING=増やす / SUCKING=減らす) にしか動かさない。
 // ============================================================
-void fill(int percent) {
-  int actualPercent = min(percent, 100 - currentInside);
-  if (actualPercent <= 0) return; // 既に満杯、または実質0
-  startAction(MOTOR_FILLING, actualPercent);
-}
+void moveToward(MotorState dir, int target) {
+  int delta = target - currentInside;
 
-// ============================================================
-// 仕様に従い、percentだけsuckを行う(0%未満は自動的に切り詰め)
-// ============================================================
-void suck(int percent) {
-  int actualPercent = min(percent, currentInside);
-  if (actualPercent <= 0) return; // 既に空、または実質0
-  startAction(MOTOR_SUCKING, actualPercent);
-}
+  // 指定の向きと逆、または既に到達済みなら何もしない
+  if (dir == MOTOR_FILLING && delta <= 0) { stopMotors(); motorState = MOTOR_STOPPED; return; }
+  if (dir == MOTOR_SUCKING && delta >= 0) { stopMotors(); motorState = MOTOR_STOPPED; return; }
 
-// ============================================================
-// モーターを停止させる(進行中アクションは経過分をcurrentInsideに反映してから止める)
-// ============================================================
-void stop() {
-  finalizeAction();
-}
-
-// ---- 内部処理 ----
-
-void startAction(MotorState newState, int percentToMove) {
-  if (motorState != MOTOR_STOPPED) {
-    finalizeAction(); // 実行中アクションがあれば進捗を確定させてから切り替える
-  }
-
-  motorState = newState;
+  motorState = dir;
+  actionTargetInside = target;
   actionStartMillis = millis();
-  actionStartInside = currentInside;
-  actionTargetDelta = percentToMove;
-  actionDurationMs = (unsigned long)percentToMove * MS_PER_PERCENT;
+  actionDurationMs = (unsigned long)abs(delta) * MS_PER_PERCENT;
 
-  driveMotor(newState);
+  driveMotor(dir);
 }
 
+// 駆動時間に到達したら目標値へ更新して停止する
 void updateMotion() {
   if (motorState == MOTOR_STOPPED) return;
+
   if (millis() - actionStartMillis >= actionDurationMs) {
-    finalizeAction(); // 目標時間到達 → 全量反映して停止
+    currentInside = constrain(actionTargetInside, 0, 100);
+    stopMotors();
+    motorState = MOTOR_STOPPED;
   }
-}
-//進行中のモーター駆動アクションを「今この瞬間の状態」で確定させ、
-//currentInsideに反映してから停止する関数。
-void finalizeAction() {
-  if (motorState == MOTOR_STOPPED) return;
-
-  unsigned long elapsed = millis() - actionStartMillis;
-  float ratio = (float)elapsed / (float)actionDurationMs;
-  if (ratio > 1.0f) ratio = 1.0f;
-
-  int movedAmount = (int)(actionTargetDelta * ratio + 0.5f);
-
-  if (motorState == MOTOR_FILLING) {
-    currentInside = constrain(actionStartInside + movedAmount, 0, 100);
-  } else if (motorState == MOTOR_SUCKING) {
-    currentInside = constrain(actionStartInside - movedAmount, 0, 100);
-  }
-
-  disablePins();
-  motorState = MOTOR_STOPPED;
 }
 
 void driveMotor(MotorState state) {
   if (state == MOTOR_FILLING) {
     digitalWrite(AIN1, LOW);
     digitalWrite(AIN2, HIGH);
-    digitalWrite(BIN1, LOW);
+    digitalWrite(BIN1, HIGH);
     digitalWrite(BIN2, LOW);
   } else if (state == MOTOR_SUCKING) {
-    digitalWrite(AIN1, LOW);
+    digitalWrite(AIN1, HIGH);
     digitalWrite(AIN2, LOW);
     digitalWrite(BIN1, LOW);
     digitalWrite(BIN2, HIGH);
   }
 }
 
-void disablePins() {
+void stopMotors() {
   digitalWrite(AIN1, LOW);
   digitalWrite(AIN2, LOW);
   digitalWrite(BIN1, LOW);
   digitalWrite(BIN2, LOW);
 }
 
-void sendToUnity() {
-  int processingState = (motorState == MOTOR_STOPPED) ? 0 : 1;
-
+void sendStatus() {
   Serial.print('(');
-  Serial.print(processingState);
+  Serial.print(motorState == MOTOR_STOPPED ? 0 : 1);
   Serial.print(',');
-  Serial.print(currentInside); // 今後使いそうな部分: 現在値をとりあえず送信
+  Serial.print(currentInside);
   Serial.print(')');
   Serial.print('\n');
 }

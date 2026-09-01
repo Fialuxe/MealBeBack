@@ -5,13 +5,11 @@ public class QuizManager : MonoBehaviour
 {
     private enum QuestionPhase
     {
-        WaitingForSelection,
-        WaitingForHold,
-        WaitingForMouth,
-        WaitingForBite,
-        WaitingForOpen,
-        Deflating,
-        ShowingFeedback
+        WaitingForSelection, // 左右どちらの食材かを選ぶ
+        WaitingForHold,      // 手に持つ
+        WaitingForMouth,     // 口元へ運ぶ → くわえた瞬間に正誤判定
+        Chewing,             // 咀嚼シーケンスをキー1回ごとに1ステップ進める
+        ShowingFeedback      // 結果表示 → 次の問題へ
     }
 
     public enum AnswerSide
@@ -49,19 +47,7 @@ public class QuizManager : MonoBehaviour
     [SerializeField]
     private SerialSystem serialSystem;
 
-    [Tooltip("噛むごとにデバイスを充填する量 (%)。20 なら 5 回で 100% (#42)。")]
-    [SerializeField, Range(1, 100)]
-    private int fillStepPercent = 20;
-
-    [Tooltip("最後に口を開いたときにデバイスを吸引する量 (%)。")]
-    [SerializeField, Range(1, 100)]
-    private int deflatePercent = 100;
-
-    [Tooltip("吸引を送ってから、しぼみ切り信号を待つ最大秒数。超えたら手動で判定へ進む。")]
-    [SerializeField, Min(0.5f)]
-    private float deflateTimeoutSeconds = 3f;
-
-    [Tooltip("噛む/開く信号を受けても、デバイスが動作中 (処理状態 = 1) の間は無視する (#42)。")]
+    [Tooltip("咀嚼シーケンス中、デバイス動作中 (処理状態 = 1) の間はキー入力を無視する。")]
     [SerializeField]
     private bool respectDeviceBusy = true;
 
@@ -94,20 +80,8 @@ public class QuizManager : MonoBehaviour
         "口元へ運んでください";
 
     [SerializeField]
-    private string biteMessage =
-        "噛んでください";
-
-    [SerializeField]
-    private string openMessage =
-        "開いてください";
-
-    [SerializeField]
-    private string finalOpenMessage =
-        "口を大きく開けてください";
-
-    [SerializeField]
-    private string deflatingMessage =
-        "そのまま少し待ってください";
+    private string chewingMessage =
+        "そのまま噛み続けてください";
 
     [SerializeField]
     private string correctMessage =
@@ -117,13 +91,26 @@ public class QuizManager : MonoBehaviour
     private string incorrectMessage =
         "残念！不正解！";
 
+    // ── 咀嚼シーケンス定義 ───────────────────────────────────────────────────
+    //
+    // 問題開始時、デバイスは必ず 100%。
+    //   減衰フェーズ (正解・不正解共通) : 100 → 0 → 80 → 0 → 60 → 0 → 40 → 0 → 20 → 0
+    //   回復フェーズ (正解時のみ)       : → 20 → 0 → 40 → 0 → 60 → 0 → 80 → 100
+    // 各要素は「そのステップで到達する充填率 (%)」。キー入力 1 回で 1 ステップ進む。
+    private static readonly int[] DecayTargets = { 0, 80, 0, 60, 0, 40, 0, 20, 0 };
+    private static readonly int[] RecoveryTargets = { 20, 0, 40, 0, 60, 0, 80, 100 };
+
     // #45 ①: 本来はトラッカー位置から特定する。当面は KeyboardManager /
     // ExperienceFlowController のキー入力 (G / H) で NotifyDeviceSelected 経由で設定する。
     private SerialSystem.SerialDevice selectedDevice = SerialSystem.SerialDevice.None;
 
-    // 現在の問題で、これまでに送った充填量の合計 (%)。フロー判断の基準。
+    // Unity 側が把握しているデバイスの現在充填率 (%)。
+    // 充填 / 吸引コマンドを送るたびに更新し、Arduino からの報告値で随時補正する (同期)。
     private int expectedFillPercent = 0;
-    private Coroutine deflateWatchdogCo;
+
+    private int[] chewTargets;   // 現在の問題の咀嚼ステップ列 (正誤で長さが変わる)
+    private int chewStep;        // 次に実行するステップのインデックス
+    private bool answerWasCorrect;
 
     private int currentQuestionIndex = -1;
     private int score = 0;
@@ -164,7 +151,7 @@ public class QuizManager : MonoBehaviour
 
         if (serialSystem != null)
         {
-            serialSystem.OnFullyDeflated += HandleDeviceFullyDeflated;
+            serialSystem.OnFillPercentChanged += HandleDeviceFillPercentChanged;
         }
     }
 
@@ -172,7 +159,7 @@ public class QuizManager : MonoBehaviour
     {
         if (serialSystem != null)
         {
-            serialSystem.OnFullyDeflated -= HandleDeviceFullyDeflated;
+            serialSystem.OnFillPercentChanged -= HandleDeviceFillPercentChanged;
         }
     }
 
@@ -184,16 +171,51 @@ public class QuizManager : MonoBehaviour
     {
         selectedDevice = device;
         Debug.Log($"[Quiz] 使用デバイス = {device}");
+
+        // 選択直後に Unity の推定値を実機へ書き込んで状態を一致させる。
+        // (問題開始時は 100% 想定。Arduino 起動時の値と食い違う場合の保険)
+        if (quizRunning && DeviceConnected)
+        {
+            serialSystem.Calibrate(selectedDevice, expectedFillPercent);
+            Debug.Log($"[Quiz] デバイス状態を同期: {expectedFillPercent}%");
+        }
     }
 
-    // SerialSystem がデバイスの「停止 かつ 充填率 0」を検知したら呼ばれる。
-    private void HandleDeviceFullyDeflated(SerialSystem.SerialDevice device)
+    // Arduino が報告する実際の充填率で Unity の推定値を補正する (状態同期)。
+    private void HandleDeviceFillPercentChanged(
+        SerialSystem.SerialDevice device, int reportedPercent)
     {
-        if (selectedDevice != SerialSystem.SerialDevice.None &&
-            device != selectedDevice)
+        if (!quizRunning || device != selectedDevice)
             return;
 
-        NotifyDeviceFullyDeflated();
+        // 駆動中の報告は途中値で当てにならない。停止中のみ扱う。
+        if (serialSystem.IsBusy(device))
+            return;
+
+        if (reportedPercent == expectedFillPercent)
+            return;
+
+        // 咀嚼中は、送ったコマンドがまだ実機に反映されていない可能性があるため
+        // ログだけ出す。噛み始める前後の待機フェーズでのみ推定値を実機値へ合わせる。
+        bool safeToReconcile =
+            currentPhase == QuestionPhase.WaitingForSelection ||
+            currentPhase == QuestionPhase.WaitingForHold ||
+            currentPhase == QuestionPhase.WaitingForMouth ||
+            currentPhase == QuestionPhase.ShowingFeedback;
+
+        if (safeToReconcile)
+        {
+            Debug.LogWarning(
+                $"[Quiz] 充填率のズレを検出: 推定 {expectedFillPercent}% → 実機 {reportedPercent}%。実機値へ補正"
+            );
+            expectedFillPercent = reportedPercent;
+        }
+        else
+        {
+            Debug.Log(
+                $"[Quiz] 充填率の差 (推定 {expectedFillPercent}% / 実機 {reportedPercent}%) — 咀嚼中のため補正保留"
+            );
+        }
     }
 
     public void StartQuiz()
@@ -209,8 +231,6 @@ public class QuizManager : MonoBehaviour
 
         score = 0;
         quizRunning = true;
-
-        StopDeflateWatchdog();
         expectedFillPercent = 0;
 
         if (fishSystem != null)
@@ -247,7 +267,7 @@ public class QuizManager : MonoBehaviour
         SubmitAnswer(AnswerSide.Right);
     }
 
-    private void SubmitAnswer(AnswerSide selectedAnswer)
+    private void SubmitAnswer(AnswerSide answer)
     {
         if (!quizRunning)
             return;
@@ -261,116 +281,15 @@ public class QuizManager : MonoBehaviour
 
         answerLocked = true;
 
-        this.selectedAnswer = selectedAnswer;
+        selectedAnswer = answer;
         hasSelectedAnswer = true;
         currentPhase = QuestionPhase.WaitingForHold;
 
         ShowInstruction(holdMessage);
 
         Debug.Log(
-            $"[Quiz] {(selectedAnswer == AnswerSide.Left ? "左" : "右")}を選択"
+            $"[Quiz] {(answer == AnswerSide.Left ? "左" : "右")}を選択"
         );
-    }
-
-    private void JudgeSelectedAnswer()
-    {
-        if (!quizRunning || !hasSelectedAnswer)
-            return;
-
-        if (currentQuestionIndex < 0 ||
-            currentQuestionIndex >= questions.Length)
-            return;
-
-        QuestionData currentQuestion =
-            questions[currentQuestionIndex];
-
-        bool isCorrect =
-            this.selectedAnswer == currentQuestion.correctAnswer;
-
-        if (isCorrect)
-        {
-            HandleCorrectAnswer();
-            BeginCorrectFeedback();
-        }
-        else
-        {
-            HandleIncorrectAnswer();
-            BeginIncorrectFeedback();
-        }
-
-        UpdateScoreDisplay();
-        currentPhase = QuestionPhase.ShowingFeedback;
-    }
-
-    private void HandleCorrectAnswer()
-    {
-        score++;
-
-        Debug.Log(
-            $"[Quiz] 正解！ Score = {score}"
-        );
-
-        if (fishSystem != null)
-        {
-            fishSystem.OnCorrect();
-            fishSystem.PlayMouthBurst();
-        }
-        else
-        {
-            Debug.LogWarning(
-                "[Quiz] FishSystem が設定されていません"
-            );
-        }
-    }
-
-    private void BeginCorrectFeedback()
-    {
-        // 正解時の実行順。
-        // 1. デバイスの充填/吸引は噛む/開く信号 (NotifyBiteDetected /
-        //    NotifyOpenDetected) 側で SerialSystem へ送っている。ここでは何もしない。
-
-        // 2. 正解UIを表示する。
-        ShowInstruction(correctMessage);
-        StartCoroutine(ContinueAfterFeedbackDelay());
-
-        // 3. FishSystemを呼び、口元と体の周囲の演出を同時に開始する。
-        // fishSystem.OnCorrect();
-        // fishSystem.PlayMouthBurst();
-    }
-
-    private void HandleIncorrectAnswer()
-    {
-        Debug.Log(
-            $"[Quiz] 不正解 Score = {score}"
-        );
-
-        if (fishSystem != null)
-        {
-            fishSystem.OnIncorrect();
-        }
-
-        if (fogSystem != null)
-        {
-            fogSystem.StepDirtier();
-        }
-        else
-        {
-            Debug.LogWarning(
-                "[Quiz] FogSystem が設定されていません"
-            );
-        }
-    }
-
-    private void BeginIncorrectFeedback()
-    {
-        // 不正解時の実行順。
-        // 1. 不正解UIを表示する。
-        ShowInstruction(incorrectMessage);
-        StartCoroutine(ContinueAfterFeedbackDelay());
-
-        // 2. FogSystemを呼び、海中を1段階汚す。
-        // fishSystem.OnIncorrect();
-        // fogSystem.StepDirtier();
     }
 
     private void ShowQuestion(int index)
@@ -380,18 +299,29 @@ public class QuizManager : MonoBehaviour
 
         HideAllQuestions();
 
-        // 前の問題でデバイスが膨らんだままなら、止めてしぼませてから次へ (#42)。
-        StopDeflateWatchdog();
-        if (SerialActive && expectedFillPercent > 0)
+        currentQuestionIndex = index;
+        chewTargets = null;
+        chewStep = 0;
+
+        // 問題開始時は必ずデバイスを 100% に戻す。
+        //   正解直後 : 回復フェーズで既に 100%。Calibrate で同期のみ。
+        //   不正解直後 / 初回 : 0% (または不定) から Fill(100) で膨らませる。
+        if (SerialActive)
         {
             if (DeviceConnected)
-                serialSystem.Suck(selectedDevice, 100);
+            {
+                if (expectedFillPercent >= 100)
+                    serialSystem.Calibrate(selectedDevice, 100);
+                else
+                    serialSystem.Fill(selectedDevice, 100);
+            }
             else
+            {
                 StopSelectedDevice();
+            }
         }
-        expectedFillPercent = 0;
+        expectedFillPercent = 100;
 
-        currentQuestionIndex = index;
         answerLocked = false;
         hasSelectedAnswer = false;
         currentPhase = QuestionPhase.WaitingForSelection;
@@ -452,8 +382,6 @@ public class QuizManager : MonoBehaviour
     private void FinishQuiz()
     {
         quizRunning = false;
-
-        StopDeflateWatchdog();
         expectedFillPercent = 0;
 
         if (serialSystem != null)
@@ -498,6 +426,7 @@ public class QuizManager : MonoBehaviour
         }
     }
 
+    // 単一の「送り」キーから呼ばれる。現在のフェーズに応じて 1 歩進める。
     [ContextMenu("Instruction: Show Next")]
     public void AdvanceInstruction()
     {
@@ -507,9 +436,7 @@ public class QuizManager : MonoBehaviour
         switch (currentPhase)
         {
             case QuestionPhase.WaitingForSelection:
-                Debug.Log(
-                    "[Quiz] 先にA/Dで左右を選択してください"
-                );
+                Debug.Log("[Quiz] 先に左右を選択してください");
                 break;
 
             case QuestionPhase.WaitingForHold:
@@ -520,16 +447,8 @@ public class QuizManager : MonoBehaviour
                 NotifyMovedToMouth();
                 break;
 
-            case QuestionPhase.WaitingForBite:
-                NotifyBiteDetected();
-                break;
-
-            case QuestionPhase.WaitingForOpen:
-                NotifyOpenDetected();
-                break;
-
-            case QuestionPhase.Deflating:
-                // 吸引完了 (OnFullyDeflated) 待ち。手動操作では進めない。
+            case QuestionPhase.Chewing:
+                NotifyChewAdvance();
                 break;
 
             case QuestionPhase.ShowingFeedback:
@@ -537,8 +456,7 @@ public class QuizManager : MonoBehaviour
         }
     }
 
-    // 以下はシリアル通信側から呼ぶための受け口。
-    // 現在はExperienceFlowControllerのデバッグ入力からも呼べる。
+    // 以下はシリアル通信側 / デバッグ入力から呼ぶための受け口。
     public void NotifyHeldInHand()
     {
         if (!quizRunning ||
@@ -551,16 +469,153 @@ public class QuizManager : MonoBehaviour
         Debug.Log("[Quiz] 手持ちを確認");
     }
 
+    // くわえた瞬間に正誤判定し、咀嚼シーケンスへ入る。
     public void NotifyMovedToMouth()
     {
         if (!quizRunning ||
             currentPhase != QuestionPhase.WaitingForMouth)
             return;
 
-        currentPhase = QuestionPhase.WaitingForBite;
-        ShowInstruction(biteMessage);
+        // 問題開始時の Fill(100) がまだ終わっていない場合は待たせる。
+        if (respectDeviceBusy && DeviceBusy)
+        {
+            Debug.Log("[Quiz] デバイス充填中。くわえる操作を無視");
+            return;
+        }
 
-        Debug.Log("[Quiz] 口元への移動を確認");
+        Debug.Log("[Quiz] 口元への移動を確認 → 正誤判定");
+
+        JudgeSelectedAnswer();          // answerWasCorrect を決定し、fish / fog / score を反映
+        BuildChewSequence(answerWasCorrect);
+
+        currentPhase = QuestionPhase.Chewing;
+        ShowInstruction(chewingMessage);
+    }
+
+    // 咀嚼シーケンスを 1 ステップ進める。
+    public void NotifyChewAdvance()
+    {
+        if (!quizRunning ||
+            currentPhase != QuestionPhase.Chewing)
+            return;
+
+        if (respectDeviceBusy && DeviceBusy)
+        {
+            Debug.Log("[Quiz] デバイス動作中。次のキーを無視");
+            return;
+        }
+
+        PerformChewStep();
+    }
+
+    private void JudgeSelectedAnswer()
+    {
+        if (!hasSelectedAnswer ||
+            currentQuestionIndex < 0 ||
+            currentQuestionIndex >= questions.Length)
+        {
+            answerWasCorrect = false;
+            return;
+        }
+
+        answerWasCorrect =
+            selectedAnswer == questions[currentQuestionIndex].correctAnswer;
+
+        if (answerWasCorrect)
+        {
+            score++;
+
+            if (fishSystem != null)
+            {
+                fishSystem.OnCorrect();
+                fishSystem.PlayMouthBurst();
+            }
+            else
+            {
+                Debug.LogWarning("[Quiz] FishSystem が設定されていません");
+            }
+        }
+        else
+        {
+            if (fishSystem != null)
+                fishSystem.OnIncorrect();
+
+            if (fogSystem != null)
+                fogSystem.StepDirtier();
+            else
+                Debug.LogWarning("[Quiz] FogSystem が設定されていません");
+        }
+
+        UpdateScoreDisplay();
+
+        Debug.Log(
+            $"[Quiz] 判定: {(answerWasCorrect ? "正解" : "不正解")} Score = {score}"
+        );
+    }
+
+    // 減衰 (共通) + 回復 (正解時のみ) を連結したステップ列を組み立てる。
+    private void BuildChewSequence(bool correct)
+    {
+        int len = DecayTargets.Length + (correct ? RecoveryTargets.Length : 0);
+        chewTargets = new int[len];
+
+        for (int i = 0; i < DecayTargets.Length; i++)
+            chewTargets[i] = DecayTargets[i];
+
+        if (correct)
+        {
+            for (int i = 0; i < RecoveryTargets.Length; i++)
+                chewTargets[DecayTargets.Length + i] = RecoveryTargets[i];
+        }
+
+        chewStep = 0;
+    }
+
+    // 次の目標充填率へ 1 手動かす。
+    private void PerformChewStep()
+    {
+        if (chewTargets == null || chewStep >= chewTargets.Length)
+        {
+            FinishChewSequence();
+            return;
+        }
+
+        int target = chewTargets[chewStep];
+
+        if (SerialActive && DeviceConnected)
+        {
+            // 値は「目標充填率」。増やすなら f、減らすなら s。
+            if (target > expectedFillPercent)
+                serialSystem.Fill(selectedDevice, target);
+            else if (target < expectedFillPercent)
+                serialSystem.Suck(selectedDevice, target);
+            // 同値なら何も送らない
+        }
+        else if (SerialActive)
+        {
+            Debug.LogWarning("[Quiz] デバイス未接続。咀嚼は空進行します");
+        }
+
+        expectedFillPercent = target;
+        chewStep++;
+
+        Debug.Log(
+            $"[Quiz] 咀嚼ステップ {chewStep}/{chewTargets.Length} → {target}%"
+        );
+
+        if (chewStep >= chewTargets.Length)
+            FinishChewSequence();
+    }
+
+    private void FinishChewSequence()
+    {
+        currentPhase = QuestionPhase.ShowingFeedback;
+        ShowInstruction(answerWasCorrect ? correctMessage : incorrectMessage);
+        StartCoroutine(ContinueAfterFeedbackDelay());
+
+        Debug.Log(
+            $"[Quiz] 咀嚼シーケンス完了 ({(answerWasCorrect ? "正解" : "不正解")}) → 充填率 {expectedFillPercent}%"
+        );
     }
 
     // serialSystem があり、デバイスが選択済みか。
@@ -576,153 +631,25 @@ public class QuizManager : MonoBehaviour
     private bool DeviceBusy =>
         SerialActive && serialSystem.IsBusy(selectedDevice);
 
-    // これまでの充填指示の合計が 100% に達したか。
-    private bool DeviceIsFull => expectedFillPercent >= 100;
-
-    public void NotifyBiteDetected()
-    {
-        if (!quizRunning ||
-            currentPhase != QuestionPhase.WaitingForBite)
-            return;
-
-        // #42: 動作中はロック。噛む信号を受け付けない。
-        if (respectDeviceBusy && DeviceBusy)
-        {
-            Debug.Log("[Quiz] デバイス動作中のため噛む信号を無視");
-            return;
-        }
-
-        // #42 / #45 ②: 噛むごとに 1 段階だけ充填する (相対量。5 回で 100%)。
-        if (SerialActive && !DeviceIsFull)
-        {
-            if (DeviceConnected)
-            {
-                serialSystem.Fill(selectedDevice, fillStepPercent);
-            }
-            else
-            {
-                Debug.LogWarning(
-                    "[Quiz] デバイス未接続。充填せず進行します (F で手動判定)"
-                );
-            }
-        }
-        else if (!SerialActive)
-        {
-            Debug.LogWarning(
-                "[Quiz] デバイス未選択のまま噛みました (G / H で選択)"
-            );
-        }
-
-        expectedFillPercent =
-            Mathf.Min(100, expectedFillPercent + fillStepPercent);
-
-        currentPhase = QuestionPhase.WaitingForOpen;
-        ShowInstruction(DeviceIsFull ? finalOpenMessage : openMessage);
-
-        Debug.Log($"[Quiz] 噛んだ信号を受信 (充填 {expectedFillPercent}%)");
-    }
-
-    public void NotifyOpenDetected()
-    {
-        if (!quizRunning ||
-            currentPhase != QuestionPhase.WaitingForOpen)
-            return;
-
-        if (respectDeviceBusy && DeviceBusy)
-        {
-            Debug.Log("[Quiz] デバイス動作中のため開く信号を無視");
-            return;
-        }
-
-        if (DeviceIsFull)
-        {
-            // 最終開放: 吸引してしぼませ、しぼみ切りで判定へ。
-            currentPhase = QuestionPhase.Deflating;
-            ShowInstruction(deflatingMessage);
-            DeflateDevice();
-            StartDeflateWatchdog();
-
-            Debug.Log("[Quiz] 開いた信号を受信 (最終 → 吸引開始)");
-        }
-        else
-        {
-            // まだ途中。次の一噛みへ。
-            currentPhase = QuestionPhase.WaitingForBite;
-            ShowInstruction(biteMessage);
-
-            Debug.Log("[Quiz] 開いた信号を受信 (継続)");
-        }
-    }
-
-    private void DeflateDevice()
-    {
-        if (!SerialActive)
-            return;
-
-        if (!DeviceConnected)
-        {
-            Debug.LogWarning("[Quiz] デバイス未接続。吸引をスキップします");
-            return;
-        }
-
-        serialSystem.Suck(selectedDevice, deflatePercent);
-    }
-
-    // 中断・問題切り替え時にデバイスを止める (#42: 'i',0)。
+    // 中断・問題切り替え時にデバイスを止める ('i',0)。
     private void StopSelectedDevice()
     {
         if (SerialActive)
             serialSystem.Stop(selectedDevice);
     }
 
-    private void StartDeflateWatchdog()
-    {
-        StopDeflateWatchdog();
-        deflateWatchdogCo = StartCoroutine(DeflateWatchdogRoutine());
-    }
-
-    private void StopDeflateWatchdog()
-    {
-        if (deflateWatchdogCo != null)
-        {
-            StopCoroutine(deflateWatchdogCo);
-            deflateWatchdogCo = null;
-        }
-    }
-
-    private IEnumerator DeflateWatchdogRoutine()
-    {
-        yield return new WaitForSeconds(deflateTimeoutSeconds);
-
-        deflateWatchdogCo = null;
-
-        if (quizRunning && currentPhase == QuestionPhase.Deflating)
-        {
-            Debug.LogWarning(
-                "[Quiz] しぼみ切り信号のタイムアウト。手動で判定に進みます"
-            );
-            NotifyDeviceFullyDeflated();
-        }
-    }
-
+    // 旧「しぼみ切り信号」受け口。新フローではデバッグ用ショートカットとして、
+    // 残りの咀嚼ステップを一気に消化してフィードバックへ進める。
     public void NotifyDeviceFullyDeflated()
     {
-        if (!quizRunning || !hasSelectedAnswer)
+        if (!quizRunning || currentPhase != QuestionPhase.Chewing)
             return;
 
-        bool isChewing =
-            currentPhase == QuestionPhase.WaitingForBite ||
-            currentPhase == QuestionPhase.WaitingForOpen ||
-            currentPhase == QuestionPhase.Deflating;
+        Debug.Log("[Quiz] (デバッグ) 咀嚼シーケンスを最後までスキップ");
 
-        if (!isChewing)
-            return;
-
-        StopDeflateWatchdog();
-
-        Debug.Log("[Quiz] デバイスが完全にしぼんだ信号を受信");
-
-        JudgeSelectedAnswer();
+        int guard = 0;
+        while (currentPhase == QuestionPhase.Chewing && guard++ < 64)
+            PerformChewStep();
     }
 
     // Fish/Fogまたはデバッグ操作から、演出完了後に呼ぶ。

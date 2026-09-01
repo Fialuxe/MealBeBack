@@ -6,13 +6,19 @@ using UnityEngine;
 ///
 /// ・実際のシリアル送受信は <see cref="ArduinoSerialBridge"/>（専用スレッドで非ブロッキング）が担当する。
 ///   このクラスはプロトコルの組み立て / 解釈と、上位（QuizManager など）向け API だけを持つ。
-/// ・プロトコルは <c>External/arduino_mbb_v1.ino</c> に準拠する。
-///     Unity → Arduino : "(&lt;状態&gt;,&lt;率&gt;)\n"
-///       状態 : 'f' = 充填 / 's' = 吸引 / 'i' = 全停止（率は無視）
-///       率   : 0-100 の整数。範囲外の f / s は送らずに破棄する。
+/// ・プロトコルは <c>External/arduino_mbb_v1.ino</c> に準拠する。値はすべて「目標充填率」。
+///     Unity → Arduino : "(&lt;コマンド&gt;,&lt;値&gt;)\n"
+///       'f' = 中の量を 値% まで増やす（既に 値 以上なら何もしない）
+///       's' = 中の量を 値% まで減らす（既に 値 以下なら何もしない）
+///       'c' = モーターを回さず currentInside を 値% に設定（状態同期用）
+///       'i' = 即停止（値は無視）
+///       値   : 0-100 の整数。範囲外の f / s / c は送らずに破棄する。
 ///     Arduino → Unity : "(&lt;処理状態&gt;,&lt;currentInside&gt;)\n"
 ///       処理状態 : 1 = 駆動中 / 0 = 停止中
 ///       currentInside : 0-100（現在の充填率）
+///
+/// ・動作中に次のコマンドを送ると Arduino 側の currentInside がズレる。
+///   駆動中 (<see cref="IsBusy"/>) の間は次を送らないこと。
 ///
 /// ・デバイスは 2 台（<see cref="SerialDevice.A"/> = bridge1 / <see cref="SerialDevice.B"/> = bridge2）。
 ///   シーンに 1 つ置き、2 つの ArduinoSerialBridge を割り当てる。
@@ -36,6 +42,8 @@ public class SerialSystem : MonoBehaviour
         Fill,
         /// <summary>吸引する。</summary>
         Suck,
+        /// <summary>モーターを回さず、Arduino 側の現在充填率だけを指定値へ合わせる（状態同期用）。</summary>
+        Calibrate,
     }
 
     /// <summary>あるデバイスの最新状態。</summary>
@@ -104,22 +112,32 @@ public class SerialSystem : MonoBehaviour
 
     // ── QuizManager 向け API ─────────────────────────────────────────────────
 
-    /// <summary>指定デバイスを percent まで充填する（0-100。範囲外は破棄）。</summary>
-    public void Fill(SerialDevice device, int percent)
+    /// <summary>中の量を targetPercent まで増やす（0-100。既にそれ以上なら Arduino 側で無視）。</summary>
+    public void Fill(SerialDevice device, int targetPercent)
     {
-        SendCommand(device, DeviceMode.Fill, percent);
+        SendCommand(device, DeviceMode.Fill, targetPercent);
     }
 
-    /// <summary>指定デバイスを percent だけ吸引する（0-100。範囲外は破棄）。</summary>
-    public void Suck(SerialDevice device, int percent)
+    /// <summary>中の量を targetPercent まで減らす（0-100。既にそれ以下なら Arduino 側で無視）。</summary>
+    public void Suck(SerialDevice device, int targetPercent)
     {
-        SendCommand(device, DeviceMode.Suck, percent);
+        SendCommand(device, DeviceMode.Suck, targetPercent);
     }
 
     /// <summary>指定デバイスを即時停止する。</summary>
     public void Stop(SerialDevice device)
     {
         SendCommand(device, DeviceMode.Stop, 0);
+    }
+
+    /// <summary>
+    /// モーターを回さず、Arduino が持つ現在充填率を <paramref name="percent"/> (0-100) に合わせる。
+    /// 電源投入時の実量が既定 (100%) と違うときや、Unity 側の推定値と実機がずれたときに
+    /// 状態を一致させるために使う。
+    /// </summary>
+    public void Calibrate(SerialDevice device, int percent)
+    {
+        SendCommand(device, DeviceMode.Calibrate, percent);
     }
 
     /// <summary>両デバイスを即時停止する。</summary>
@@ -180,6 +198,15 @@ public class SerialSystem : MonoBehaviour
                     return;
                 }
                 stateChar = 's';
+                break;
+
+            case DeviceMode.Calibrate:
+                if (percent < 0 || percent > 100)
+                {
+                    Debug.LogWarning($"[SerialSystem] Calibrate の率 {percent} が範囲外(0-100)。破棄します。");
+                    return;
+                }
+                stateChar = 'c';
                 break;
 
             case DeviceMode.Stop:
