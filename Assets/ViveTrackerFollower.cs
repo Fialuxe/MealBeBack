@@ -5,7 +5,7 @@ using UnityEngine.InputSystem.Controls;
 public class ViveTrackerFollower : MonoBehaviour
 {
     [SerializeField] private string deviceName = "VIVEUltimateTracker0";
-
+    private bool isNotified = false;
     private Vector3Control posControl;
     private QuaternionControl rotControl;
     private ButtonControl trackedControl;
@@ -27,7 +27,11 @@ public class ViveTrackerFollower : MonoBehaviour
     if (posControl == null)
     {
         FindDevice();
-        Debug.Log($"posControl null -> FindDevice. found={(posControl != null)}");
+        if(isNotified == false)
+        {
+            Debug.Log($"posControl null -> FindDevice. found={(posControl != null)}");
+            isNotified = true;
+        }
         return;
     }
 
