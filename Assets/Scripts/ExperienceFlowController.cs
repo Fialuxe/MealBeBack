@@ -29,6 +29,10 @@ public class ExperienceFlowController : MonoBehaviour
     [SerializeField]
     private QuizManager quizManager;
 
+    [Header("Audio")]
+    [SerializeField]
+    private AudioSource bgmSource;
+
     [Header("Input")]
     [Tooltip("true: このクラスが直接キーボードを読む（従来動作）。" +
         "false: KeyboardManager など外部からの呼び出しに任せる。")]
@@ -212,6 +216,11 @@ public class ExperienceFlowController : MonoBehaviour
         );
 
         Debug.Log("[GameFlow] Quiz開始");
+
+        if (bgmSource != null && !bgmSource.isPlaying)
+        {
+            bgmSource.Play();
+        }
 
         quizManager.StartQuiz();
     }

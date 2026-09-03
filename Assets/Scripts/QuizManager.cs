@@ -66,6 +66,16 @@ public class QuizManager : MonoBehaviour
     [SerializeField]
     private float feedbackDuration = 2.0f;
 
+    [Header("Quiz SE")]
+    [SerializeField]
+    private AudioSource seSource;
+
+    [SerializeField]
+    private AudioClip correctSE;
+
+    [SerializeField]
+    private AudioClip incorrectSE;
+
     [Header("Instruction Messages")]
     [SerializeField]
     private string chooseMessage =
@@ -610,7 +620,23 @@ public class QuizManager : MonoBehaviour
     private void FinishChewSequence()
     {
         currentPhase = QuestionPhase.ShowingFeedback;
-        ShowInstruction(answerWasCorrect ? correctMessage : incorrectMessage);
+
+        ShowInstruction(
+            answerWasCorrect ? correctMessage : incorrectMessage
+        );
+
+        if (seSource != null)
+        {
+            if (answerWasCorrect && correctSE != null)
+            {
+                seSource.PlayOneShot(correctSE);
+            }
+            else if (!answerWasCorrect && incorrectSE != null)
+            {
+            seSource.PlayOneShot(incorrectSE);
+            }
+        }
+
         StartCoroutine(ContinueAfterFeedbackDelay());
 
         Debug.Log(
