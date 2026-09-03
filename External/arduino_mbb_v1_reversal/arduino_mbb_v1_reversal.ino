@@ -1,7 +1,24 @@
 /*
-  Meal Be Back で利用するデバイス (充填 / 吸引) の制御スクリプト。
-  仕様: https://github.com/Fialuxe/MealBeBack/issues/42
+  Meal Be Back で利用するデバイス (充填 / 吸引) の制御スクリプト —— モーター方向 逆転版。
+  仕様: https://github.com/Fialuxe/MealBeBack/issues/42 / issues/79
   DRV8835 + Arduino <-> Unity 非ブロッキング制御
+  ------------------------------------------------
+
+  ■ この _reversal 版と本家 arduino_mbb_v1 の違い
+
+    driveMotor() のモーター駆動方向だけが逆。それ以外のプロトコル・状態機械・
+    タイミングは arduino_mbb_v1 と完全に同一。
+
+    一部の実機 (Arduino Micro で組んだ個体) は、配管・ギア・モーター極性の
+    組み合わせで「押す / 引く」が本家と逆になっている。
+    #79: (0,100) の状態で "(s,0)" を送ると物理的には 100% まで膨らんだ、という報告。
+    → f / s の論理はそのままに、モーターへ出す方向信号だけを反転させて辻褄を合わせる。
+
+    Unity 側・プロトコルは無改造で使える。書き込むファームを個体ごとに
+      ・本家どおりの個体      -> arduino_mbb_v1
+      ・押し引きが逆の個体    -> arduino_mbb_v1_reversal (このファイル)
+    と選ぶだけでよい。
+
   ------------------------------------------------
   Unity -> Arduino : "(<状態>,<値>)\n"
     'f' = 中の量を <値>% まで「増やす」 (既に <値> 以上なら何もしない)
@@ -20,10 +37,6 @@
   Aチャンネル(AIN1/AIN2) = fillモーター(押す)
   Bチャンネル(BIN1/BIN2) = suckモーター(引く)
   MODE=LOW固定(PHASE/ENABLE) : IN1=PHASE(方向), IN2=ENABLE(有効/無効)
-
-  ※ 押し引きが逆に組まれた個体 (Arduino Micro 等 / #79) には、driveMotor() の
-     方向だけを反転した ../arduino_mbb_v1_reversal/arduino_mbb_v1_reversal.ino を
-     書き込むこと。プロトコル・Unity 側は共通。
 
   実装方針 (最小):
     ・目標値との差 (%) ぶんだけモーターを回す時間を決めて回す (loop は止めない)。
@@ -173,17 +186,27 @@ void updateMotion() {
   }
 }
 
+// ============================================================
+// ★ 逆転版はここだけが本家と違う ★
+// FILLING (中の量を増やす) / SUCKING (中の量を減らす) の論理はそのまま。
+// 使うモーターチャンネル (FILLING=A / SUCKING=B) も本家と同じ。
+// 各チャンネルの PHASE(方向) 信号だけを本家 arduino_mbb_v1 と反転させ、
+// 同じ指令で逆向きに回るようにする。
+//   本家 : FILLING = A ch / AIN1(PHASE)=LOW    逆転 : FILLING = A ch / AIN1(PHASE)=HIGH
+//   本家 : SUCKING = B ch / BIN1(PHASE)=LOW    逆転 : SUCKING = B ch / BIN1(PHASE)=HIGH
+// ENABLE(AIN2 / BIN2) と「駆動しない側チャンネルは ENABLE=LOW」は本家と同じ。
+// ============================================================
 void driveMotor(MotorState state) {
   if (state == MOTOR_FILLING) {
-    digitalWrite(AIN1, LOW);
-    digitalWrite(AIN2, HIGH);
-    digitalWrite(BIN1, HIGH);
-    digitalWrite(BIN2, LOW);
-  } else if (state == MOTOR_SUCKING) {
-    digitalWrite(AIN1, HIGH);
-    digitalWrite(AIN2, LOW);
+    digitalWrite(AIN1, HIGH);  // PHASE: 本家 LOW → 逆転 HIGH
+    digitalWrite(AIN2, HIGH);  // ENABLE: A ch 駆動
     digitalWrite(BIN1, LOW);
-    digitalWrite(BIN2, HIGH);
+    digitalWrite(BIN2, LOW);   // ENABLE: B ch 停止
+  } else if (state == MOTOR_SUCKING) {
+    digitalWrite(AIN1, LOW);
+    digitalWrite(AIN2, LOW);   // ENABLE: A ch 停止
+    digitalWrite(BIN1, HIGH);  // PHASE: 本家 LOW → 逆転 HIGH
+    digitalWrite(BIN2, HIGH);  // ENABLE: B ch 駆動
   }
 }
 
