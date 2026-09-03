@@ -23,6 +23,13 @@ public class QuizManager : MonoBehaviour
     {
         public GameObject questionObject;
 
+        [Header("Answer Display Names")]
+        [Tooltip("UIに表示する左側の選択肢名。未設定の場合は「左」。")]
+        public string leftAnswerName = "左";
+
+        [Tooltip("UIに表示する右側の選択肢名。未設定の場合は「右」。")]
+        public string rightAnswerName = "右";
+
         [Header("Correct Answer")]
         public AnswerSide correctAnswer;
     }
@@ -78,28 +85,38 @@ public class QuizManager : MonoBehaviour
 
     [Header("Instruction Messages")]
     [SerializeField]
-    private string chooseMessage =
-        "どちらかを取ってください";
-
-    [SerializeField]
-    private string holdMessage =
-        "手に持ってください";
-
-    [SerializeField]
-    private string bringToMouthMessage =
-        "口元へ運んでください";
-
-    [SerializeField]
-    private string chewingMessage =
-        "そのまま噛み続けてください";
-
-    [SerializeField]
     private string correctMessage =
         "お見事！正解！";
 
     [SerializeField]
     private string incorrectMessage =
         "残念！不正解！";
+
+    [Header("Selection Messages")]
+    [SerializeField]
+    private string selectionStartMessage =
+        "正解だと思うほうを選んで手に取ってください。";
+
+    [Tooltip("{answer} は問題ごとに設定した選択肢名へ置き換えられる。")]
+    [SerializeField]
+    private string selectionPreviewMessage =
+        "現在{answer}を選択しています。それでよければ口へ運んでください";
+
+    [Tooltip("{answer} は問題ごとに設定した選択肢名へ置き換えられる。")]
+    [SerializeField]
+    private string selectionConfirmedMessage =
+        "{answer}を選択しました。もう変更しないでください";
+
+    [Header("Tracker Selection Distances")]
+    [Tooltip("この距離 (m) 以下で「選択しています」と表示する。")]
+    [Min(0f)]
+    [SerializeField]
+    private float selectionPreviewDistance = 0.5f;
+
+    [Tooltip("この距離 (m) 以下で選択を確定する。表示距離以下に設定する。")]
+    [Min(0f)]
+    [SerializeField]
+    private float selectionConfirmedDistance = 0.2f;
 
     // ── 咀嚼シーケンス定義 ───────────────────────────────────────────────────
     //
@@ -108,7 +125,7 @@ public class QuizManager : MonoBehaviour
     //   回復フェーズ (正解時のみ)       : → 20 → 0 → 40 → 0 → 60 → 0 → 80 → 100
     // 各要素は「そのステップで到達する充填率 (%)」。キー入力 1 回で 1 ステップ進む。
     private static readonly int[] DecayTargets = { 0, 80, 0, 60, 0, 40, 0, 20, 0 };
-    private static readonly int[] RecoveryTargets = { 20, 0, 40, 0, 60, 0, 80, 100 };
+    private static readonly int[] RecoveryTargets = { 20, 0, 40, 0, 60, 0, 80, 0, 100 };
 
     // #45 ①: 本来はトラッカー位置から特定する。当面は KeyboardManager /
     // ExperienceFlowController のキー入力 (G / H) で NotifyDeviceSelected 経由で設定する。
@@ -136,6 +153,7 @@ public class QuizManager : MonoBehaviour
     public bool IsQuizRunning => quizRunning;
     public int CurrentQuestionIndex => currentQuestionIndex;
     public int Score => score;
+    public bool HasSelectedAnswer => hasSelectedAnswer;
     public SerialSystem.SerialDevice SelectedDevice => selectedDevice;
 
     private void Start()
@@ -165,6 +183,19 @@ public class QuizManager : MonoBehaviour
         }
     }
 
+    private void OnValidate()
+    {
+        selectionPreviewDistance =
+            Mathf.Max(0f, selectionPreviewDistance);
+
+        selectionConfirmedDistance =
+            Mathf.Clamp(
+                selectionConfirmedDistance,
+                0f,
+                selectionPreviewDistance
+            );
+    }
+
     private void OnDestroy()
     {
         if (serialSystem != null)
@@ -179,15 +210,100 @@ public class QuizManager : MonoBehaviour
     /// </summary>
     public void NotifyDeviceSelected(SerialSystem.SerialDevice device)
     {
+        // クイズ開始前のデバッグ選択は従来どおり保持する。
+        if (!quizRunning)
+        {
+            selectedDevice = device;
+            Debug.Log($"[Quiz] 使用デバイス = {device}");
+            return;
+        }
+
+        // 口元へ運んで回答を確定した後は変更しない。
+        if (answerLocked)
+            return;
+
+        // Trackerが選択範囲から出た場合。
+        if (device == SerialSystem.SerialDevice.None)
+        {
+            if (selectedDevice == SerialSystem.SerialDevice.None &&
+                !hasSelectedAnswer)
+                return;
+
+            selectedDevice = SerialSystem.SerialDevice.None;
+            hasSelectedAnswer = false;
+            currentPhase = QuestionPhase.WaitingForSelection;
+
+            ShowInstruction(selectionStartMessage);
+
+            Debug.Log("[Quiz] 仮選択を解除");
+            return;
+        }
+
+        // 毎フレーム同じ通知が来ても処理を繰り返さない。
+        if (selectedDevice == device && hasSelectedAnswer)
+            return;
+
         selectedDevice = device;
+
+        AnswerSide answer =
+            device == SerialSystem.SerialDevice.A
+                ? AnswerSide.Left
+                : AnswerSide.Right;
+
+        SubmitAnswer(answer);
+
         Debug.Log($"[Quiz] 使用デバイス = {device}");
 
-        // 選択直後に Unity の推定値を実機へ書き込んで状態を一致させる。
-        // (問題開始時は 100% 想定。Arduino 起動時の値と食い違う場合の保険)
-        if (quizRunning && DeviceConnected)
+        // 選択した実機の状態をUnity側の推定値へ合わせる。
+        if (DeviceConnected)
         {
-            serialSystem.Calibrate(selectedDevice, expectedFillPercent);
-            Debug.Log($"[Quiz] デバイス状態を同期: {expectedFillPercent}%");
+            serialSystem.Calibrate(
+                selectedDevice,
+                expectedFillPercent
+            );
+
+            Debug.Log(
+                $"[Quiz] デバイス状態を同期: {expectedFillPercent}%"
+            );
+        }
+    }
+
+    /// <summary>
+    /// Tracker側から、最も近いデバイスとカメラまでの距離を受け取る。
+    /// 表示距離内なら仮選択し、確定距離内なら回答を確定する。
+    /// </summary>
+    public void NotifyTrackerDistance(
+        SerialSystem.SerialDevice device,
+        float distanceToCamera)
+    {
+        if (!quizRunning || answerLocked)
+            return;
+
+        bool invalidDistance =
+            float.IsNaN(distanceToCamera) ||
+            float.IsInfinity(distanceToCamera) ||
+            distanceToCamera < 0f;
+
+        if (device == SerialSystem.SerialDevice.None ||
+            invalidDistance ||
+            distanceToCamera > selectionPreviewDistance)
+        {
+            NotifyDeviceSelected(
+                SerialSystem.SerialDevice.None
+            );
+            return;
+        }
+
+        bool wasSameDeviceSelected =
+            hasSelectedAnswer &&
+            selectedDevice == device;
+
+        NotifyDeviceSelected(device);
+
+        if (wasSameDeviceSelected &&
+            distanceToCamera <= selectionConfirmedDistance)
+        {
+            NotifyMovedToMouth();
         }
     }
 
@@ -279,26 +395,95 @@ public class QuizManager : MonoBehaviour
 
     private void SubmitAnswer(AnswerSide answer)
     {
-        if (!quizRunning)
-            return;
-
-        if (answerLocked)
+        if (!quizRunning || answerLocked)
             return;
 
         if (currentQuestionIndex < 0 ||
             currentQuestionIndex >= questions.Length)
             return;
 
-        answerLocked = true;
+        bool canChangeSelection =
+            currentPhase == QuestionPhase.WaitingForSelection ||
+            currentPhase == QuestionPhase.WaitingForHold ||
+            currentPhase == QuestionPhase.WaitingForMouth;
+
+        if (!canChangeSelection)
+            return;
+
+        bool selectionChanged =
+            !hasSelectedAnswer ||
+            selectedAnswer != answer;
 
         selectedAnswer = answer;
         hasSelectedAnswer = true;
-        currentPhase = QuestionPhase.WaitingForHold;
 
-        ShowInstruction(holdMessage);
+        if (currentPhase == QuestionPhase.WaitingForSelection ||
+            currentPhase == QuestionPhase.WaitingForHold)
+        {
+            currentPhase = QuestionPhase.WaitingForMouth;
+        }
 
-        Debug.Log(
-            $"[Quiz] {(answer == AnswerSide.Left ? "左" : "右")}を選択"
+        ShowSelectionPreview();
+
+        if (selectionChanged)
+        {
+            Debug.Log(
+                $"[Quiz] {GetSelectedAnswerName()}を仮選択"
+            );
+        }
+    }
+
+    private string GetSelectedAnswerName()
+    {
+        string fallbackName =
+            selectedAnswer == AnswerSide.Left ? "左" : "右";
+
+        if (questions == null ||
+            currentQuestionIndex < 0 ||
+            currentQuestionIndex >= questions.Length ||
+            questions[currentQuestionIndex] == null)
+        {
+            return fallbackName;
+        }
+
+        QuestionData currentQuestion =
+            questions[currentQuestionIndex];
+
+        string configuredName =
+            selectedAnswer == AnswerSide.Left
+                ? currentQuestion.leftAnswerName
+                : currentQuestion.rightAnswerName;
+
+        return string.IsNullOrWhiteSpace(configuredName)
+            ? fallbackName
+            : configuredName;
+    }
+
+    private string FormatSelectionMessage(string messageTemplate)
+    {
+        return (messageTemplate ?? string.Empty).Replace(
+            "{answer}",
+            GetSelectedAnswerName()
+        );
+    }
+
+    private void ShowSelectionPreview()
+    {
+        if (!hasSelectedAnswer)
+        {
+            ShowInstruction(selectionStartMessage);
+            return;
+        }
+
+        ShowInstruction(
+            FormatSelectionMessage(selectionPreviewMessage)
+        );
+    }
+
+    private void ShowSelectionConfirmed()
+    {
+        ShowInstruction(
+            FormatSelectionMessage(selectionConfirmedMessage)
         );
     }
 
@@ -341,7 +526,7 @@ public class QuizManager : MonoBehaviour
             questions[index].questionObject.SetActive(true);
         }
 
-        ShowInstruction(chooseMessage);
+        ShowInstruction(selectionStartMessage);
 
         Debug.Log(
             $"[Quiz] 問題 {currentQuestionIndex + 1} / {questions.Length}"
@@ -470,11 +655,12 @@ public class QuizManager : MonoBehaviour
     public void NotifyHeldInHand()
     {
         if (!quizRunning ||
-            currentPhase != QuestionPhase.WaitingForHold)
+            currentPhase != QuestionPhase.WaitingForHold ||
+            !hasSelectedAnswer)
             return;
 
         currentPhase = QuestionPhase.WaitingForMouth;
-        ShowInstruction(bringToMouthMessage);
+        ShowSelectionPreview();
 
         Debug.Log("[Quiz] 手持ちを確認");
     }
@@ -483,7 +669,8 @@ public class QuizManager : MonoBehaviour
     public void NotifyMovedToMouth()
     {
         if (!quizRunning ||
-            currentPhase != QuestionPhase.WaitingForMouth)
+            currentPhase != QuestionPhase.WaitingForMouth ||
+            !hasSelectedAnswer)
             return;
 
         // 問題開始時の Fill(100) がまだ終わっていない場合は待たせる。
@@ -493,13 +680,16 @@ public class QuizManager : MonoBehaviour
             return;
         }
 
+        // ここから先はTrackerが動いても回答を変更しない。
+        answerLocked = true;
+
         Debug.Log("[Quiz] 口元への移動を確認 → 正誤判定");
 
-        JudgeSelectedAnswer();          // answerWasCorrect を決定し、fish / fog / score を反映
+        JudgeSelectedAnswer();
         BuildChewSequence(answerWasCorrect);
 
         currentPhase = QuestionPhase.Chewing;
-        ShowInstruction(chewingMessage);
+        ShowSelectionConfirmed();
     }
 
     // 咀嚼シーケンスを 1 ステップ進める。
