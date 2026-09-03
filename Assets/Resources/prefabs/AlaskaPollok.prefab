@@ -115,6 +115,10 @@ MonoBehaviour:
   boundsCenterOffset: {x: 0, y: 0, z: 0}
   boundsSize: {x: 6, y: 3, z: 6}
   boundsMargin: 1.2
+  keepAboveGround: 1
+  groundClearance: 0.3
+  groundLookAhead: 3
+  groundAvoidClearance: 1.2
   avoidObstacles: 0
   obstacleMask:
     serializedVersion: 2

@@ -74,10 +74,10 @@ MonoBehaviour:
     alignment: 0.45
     separation: 1
     separationDist: 1.3
-    bandInner: 4
-    bandOuter: 12
+    bandInner: 3
+    bandOuter: 10
     bandPull: 0.6
-    depthOffset: 0
+    depthOffset: 0.6
     depthPull: 0.4
     modelYawOffset: 90
   - label: Tuna
@@ -140,10 +140,10 @@ MonoBehaviour:
     alignment: 0.4
     separation: 1
     separationDist: 1.4
-    bandInner: 11
-    bandOuter: 24
+    bandInner: 15
+    bandOuter: 32
     bandPull: 0.6
-    depthOffset: 1.5
+    depthOffset: -1.8
     depthPull: 0.4
     modelYawOffset: 90
   maxFish: 40
@@ -152,6 +152,16 @@ MonoBehaviour:
   spawnRingMax: 14
   spawnDepthMin: 0
   spawnDepthMax: 2
+  keepAboveGround: 1
+  groundClearance: 0.4
+  groundRaycastMask:
+    serializedVersion: 2
+    m_Bits: 0
+  avoidGroundAhead: 1
+  groundLookAhead: 4
+  groundAvoidClearance: 1.6
+  groundAvoidTurnRate: 120
+  groundAvoidPitchUp: 22
   phases:
   - label: "\u9BDB\u304C2\u5339\u5408\u6D41"
     addPerSpecies: 020000000000000000000000

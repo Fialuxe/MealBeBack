@@ -143,6 +143,28 @@ public class AmbientFish
         float depthPitch = Mathf.Clamp(-yErr * 10f, -_cfg.maxPitchAngle, _cfg.maxPitchAngle);
         _targetPitch = Mathf.Lerp(0f, depthPitch, _cfg.depthPull);
 
+        // ── 4b. 前方の地形を回避 (水平操舵 + 機首上げ)。高さサンプルのみ、レイキャスト無し。 ──
+        if (sys != null && sys.AvoidGroundEnabled)
+        {
+            float lookDist = sys.GroundLookAhead;
+            float clr = sys.GroundAvoidClearance;
+            float hRad = _heading * Mathf.Deg2Rad;
+            Vector3 fwdFlat = new Vector3(Mathf.Sin(hRad), 0f, Mathf.Cos(hRad));
+            Vector3 rightFlat = new Vector3(fwdFlat.z, 0f, -fwdFlat.x);
+
+            float gAhead = sys.GroundHeightAt(pos + fwdFlat * lookDist);
+            float margin = (gAhead + clr) - pos.y;   // > 0 なら地形が近い
+            if (!float.IsNegativeInfinity(gAhead) && margin > 0f)
+            {
+                float gL = sys.GroundHeightAt(pos + (fwdFlat * 0.5f - rightFlat) * lookDist);
+                float gR = sys.GroundHeightAt(pos + (fwdFlat * 0.5f + rightFlat) * lookDist);
+                float urgency = Mathf.Clamp01(margin / Mathf.Max(clr, 0.5f));
+                float turn = gL <= gR ? -1f : 1f;    // 低い側へ曲がる
+                _targetHeading += turn * sys.GroundAvoidTurnRate * urgency * dt;
+                _targetPitch = Mathf.Min(_targetPitch, -sys.GroundAvoidPitchUp * urgency);
+            }
+        }
+
         // ── 5. なめらか追従 (レート制限 = 旋回の慣性) ──
         float prevHeading = _heading;
         _heading = Mathf.SmoothDampAngle(_heading, _targetHeading, ref _headingVel,
@@ -185,6 +207,30 @@ public class AmbientFish
             _animator.speed = Mathf.Clamp(baseSpeed / Mathf.Max(_cfg.cruiseSpeed, 0.01f),
                                           _cfg.animSpeedMin, _cfg.animSpeedMax);
         }
+    }
+
+    /// <summary>
+    /// 海底より下へ抜けていたら minY まで引き上げ、次フレーム以降は上向きに泳がせる。
+    /// FishSystem.Update の O(N) ループから Tick 後に 1 回呼ばれる。1 匹 O(1)。
+    /// </summary>
+    public void EnforceFloor(float minY)
+    {
+        if (_tf == null)
+            return;
+
+        Vector3 p = _tf.position;
+        if (p.y >= minY)
+            return;
+
+        p.y = minY;
+        _tf.position = p;
+        _pos = p;
+
+        // ピッチ正 = 機首下げ (Unity)。海底沿いに登れるよう下向き成分を止める。
+        _pitchVel = 0f;
+        if (_pitch > 0f)
+            _pitch = 0f;
+        _targetPitch = Mathf.Min(_targetPitch, -8f);
     }
 
     private void ApplyPose(Vector3 pos)
