@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &5597931954677038279
+--- !u!1 &1371470184106129598
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,8 +8,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2415845668879048717}
-  - component: {fileID: 355216033179769612}
+  - component: {fileID: 5795160069572760456}
+  - component: {fileID: 4879517844944023008}
   m_Layer: 0
   m_Name: QuizManager
   m_TagString: Untagged
@@ -17,13 +17,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &2415845668879048717
+--- !u!4 &5795160069572760456
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5597931954677038279}
+  m_GameObject: {fileID: 1371470184106129598}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
@@ -32,13 +32,13 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &355216033179769612
+--- !u!114 &4879517844944023008
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5597931954677038279}
+  m_GameObject: {fileID: 1371470184106129598}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 295043c921a2fe7408d3339c499e9b5a, type: 3}
@@ -46,30 +46,41 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   questions:
   - questionObject: {fileID: 0}
+    leftAnswerName: "\u5375\u713C\u304D"
+    rightAnswerName: "\u9B5A\u8089\u30BD\u30FC\u30BB\u30FC\u30B8"
     correctAnswer: 1
   - questionObject: {fileID: 0}
+    leftAnswerName: "\u56E3\u5B50"
+    rightAnswerName: "\u3064\u304F\u306D"
     correctAnswer: 1
   - questionObject: {fileID: 0}
-    correctAnswer: 1
-  - questionObject: {fileID: 0}
+    leftAnswerName: "\u3060\u3066\u5DFB\u304D"
+    rightAnswerName: "\u30ED\u30FC\u30EB\u30B1\u30FC\u30AD"
     correctAnswer: 0
   - questionObject: {fileID: 0}
+    leftAnswerName: "\u304B\u306B\u304B\u307E"
+    rightAnswerName: "\u30B5\u30E9\u30C0\u30C1\u30AD\u30F3"
     correctAnswer: 0
   - questionObject: {fileID: 0}
+    leftAnswerName: "\u30C1\u30E5\u30ED\u30B9"
+    rightAnswerName: "\u3061\u304F\u308F"
     correctAnswer: 1
-  - questionObject: {fileID: 0}
-    correctAnswer: 1
-  - questionObject: {fileID: 0}
-    correctAnswer: 0
   gameFlow: {fileID: 0}
   fishSystem: {fileID: 0}
+  fogSystem: {fileID: 0}
+  serialSystem: {fileID: 0}
+  respectDeviceBusy: 1
   scoreText: {fileID: 0}
   instructionRoot: {fileID: 0}
   instructionText: {fileID: 0}
-  chooseMessage: "\u3069\u3061\u3089\u304B\u3092\u53D6\u3063\u3066\u304F\u3060\u3055\u3044"
-  holdMessage: "\u624B\u306B\u6301\u3063\u3066\u304F\u3060\u3055\u3044"
-  bringToMouthMessage: "\u53E3\u5143\u3078\u904B\u3093\u3067\u304F\u3060\u3055\u3044"
-  biteMessage: "\u565B\u3093\u3067\u304F\u3060\u3055\u3044"
-  openMessage: "\u958B\u3044\u3066\u304F\u3060\u3055\u3044"
+  feedbackDuration: 2
+  seSource: {fileID: 0}
+  correctSE: {fileID: 8300000, guid: ba8d43153614b2b45bb95871b07a0650, type: 3}
+  incorrectSE: {fileID: 8300000, guid: 03b51dfb42764c64399570ecd06b243c, type: 3}
   correctMessage: "\u6B63\u89E3\uFF01\u304A\u898B\u4E8B\uFF01"
   incorrectMessage: "\u6B8B\u5FF5\uFF01\u4E0D\u6B63\u89E3\uFF01"
+  selectionStartMessage: "\u6B63\u89E3\u3060\u3068\u601D\u3046\u307B\u3046\u3092\u9078\u3093\u3067\u624B\u306B\u53D6\u3063\u3066\u304F\u3060\u3055\u3044\u3002"
+  selectionPreviewMessage: "\u73FE\u5728{answer}\u3092\u9078\u629E\u3057\u3066\u3044\u307E\u3059\u3002\u305D\u308C\u3067\u3088\u3051\u308C\u3070\u53E3\u3078\u904B\u3093\u3067\u304F\u3060\u3055\u3044"
+  selectionConfirmedMessage: "{answer}\u3092\u9078\u629E\u3057\u307E\u3057\u305F\u3002\u3082\u3046\u5909\u66F4\u3057\u306A\u3044\u3067\u304F\u3060\u3055\u3044"
+  selectionPreviewDistance: 0.5
+  selectionConfirmedDistance: 0.2
