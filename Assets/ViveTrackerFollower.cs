@@ -1,46 +1,75 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
-using UnityEngine.InputSystem.Controls;
+using MealBeBack.Tracking;
 
+/// <summary>
+/// 選択肢オブジェクトを Vive トラッカーに追従させる。
+///
+/// このコンポーネントは「自分が左右どちらの選択肢か (side)」しか持たない。
+/// 実際に追従するトラッカーのロールは共有アセット <see cref="TrackerChoiceMap"/> から引く:
+///
+///   ・side            … Left / Right。選択肢テンプレート prefab で 1 度だけ設定する。
+///   ・choiceMap       … ScriptableObject 参照。全 prefab インスタンスが自動で同じ物を共有する。
+///                        トラッカー割り当てが変わったら、このアセット 1 個を直すだけ。
+///   ・roleOverride    … 例外的に 1 インスタンスだけ別ロールにしたい時のみ使う。
+///
+/// pose の取得と OpenXR の locate は <see cref="TrackerRig"/> が一括で行う。
+/// </summary>
 public class ViveTrackerFollower : MonoBehaviour
 {
-    [SerializeField] private string deviceName = "VIVEUltimateTracker0";
-    private bool isNotified = false;
-    private Vector3Control posControl;
-    private QuaternionControl rotControl;
-    private ButtonControl trackedControl;
+    [Header("この選択肢の役割")]
+    [SerializeField] private ChoiceSide side = ChoiceSide.Left;
 
-    void FindDevice()
+    [Tooltip("Left/Right → トラッカーロールの対応表 (共有アセット)")]
+    [SerializeField] private TrackerChoiceMap choiceMap;
+
+    [Tooltip("設定すると choiceMap を無視してこのロールを直接使う")]
+    [SerializeField] private TrackerRole roleOverride = TrackerRole.None;
+
+    [Header("挙動")]
+    [Tooltip("トラッキングロスト中は最後の姿勢を保持する (false: 原点へ戻す)")]
+    [SerializeField] private bool holdLastPoseOnLoss = true;
+
+    private TrackerRig _rig;
+
+    /// <summary>今このフォロワーが参照しているトラッカーロール。</summary>
+    public TrackerRole ActiveRole =>
+        roleOverride != TrackerRole.None ? roleOverride
+        : choiceMap != null ? choiceMap.Resolve(side)
+        : TrackerRole.None;
+
+    /// <summary>対象トラッカーが今 Track 出来ているか。</summary>
+    public bool IsTracking => _rig != null && _rig.IsTracked(ActiveRole);
+
+    public ChoiceSide Side
     {
-        foreach (var d in InputSystem.devices)
+        get => side;
+        set => side = value;
+    }
+
+    private void OnEnable()
+    {
+        _rig = TrackerRig.EnsureExists();
+
+        if (choiceMap == null && roleOverride == TrackerRole.None)
         {
-            if (d.name != deviceName) continue;
-            posControl     = d.TryGetChildControl<Vector3Control>("devicePosition");
-            rotControl     = d.TryGetChildControl<QuaternionControl>("deviceRotation");
-            trackedControl = d.TryGetChildControl<ButtonControl>("isTracked");
-            return;
+            Debug.LogWarning(
+                $"[ViveTrackerFollower] {name}: choiceMap も roleOverride も未設定。追従しません。",
+                this);
         }
     }
 
-   void Update()
-{
-    if (posControl == null)
+    private void LateUpdate()
     {
-        FindDevice();
-        if(isNotified == false)
+        if (_rig == null) return;
+
+        if (_rig.TryGetPose(ActiveRole, out Vector3 pos, out Quaternion rot))
         {
-            Debug.Log($"posControl null -> FindDevice. found={(posControl != null)}");
-            isNotified = true;
+            transform.SetPositionAndRotation(pos, rot);
         }
-        return;
+        else if (!holdLastPoseOnLoss)
+        {
+            transform.localPosition = Vector3.zero;
+            transform.localRotation = Quaternion.identity;
+        }
     }
-
-    var p = posControl.ReadValue();
-    bool tracked = trackedControl != null && trackedControl.isPressed;
-    Debug.Log($"tracked={tracked} read={p:F3} local={transform.localPosition:F3} world={transform.position:F3}");
-
-    transform.localPosition = p;
-    if (rotControl != null)
-        transform.localRotation = rotControl.ReadValue();
-}
 }
