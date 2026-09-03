@@ -167,7 +167,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c17aa731a6f4fb54bb9a2c28df667e5e, type: 3}
   m_Name: ViveAnchor Android
   m_EditorClassIdentifier: 
-  m_enabled: 0
+  m_enabled: 1
   nameUi: VIVE XR Anchor (Beta)
   version: 1.0.0
   featureIdInternal: vive.openxr.feature.htcanchor
@@ -321,7 +321,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 80a759a91a5fd35479312cdd18e70a32, type: 3}
   m_Name: VivePathEnumeration Android
   m_EditorClassIdentifier: 
-  m_enabled: 0
+  m_enabled: 1
   nameUi: VIVE XR Path Enumeration (Beta)
   version: 1.0.6
   featureIdInternal: vive.wave.openxr.feature.pathenumeration
@@ -387,7 +387,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9396fe2350b43e04db60471cc512653e, type: 3}
   m_Name: ViveInteractions Android
   m_EditorClassIdentifier: 
-  m_enabled: 0
+  m_enabled: 1
   nameUi: VIVE XR - Interaction Group
   version: 2.5.0
   featureIdInternal: vive.openxr.feature.interactions
@@ -460,7 +460,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c465bd23c9c4fb442ae89117552a5f3f, type: 3}
   m_Name: HandTrackingFeature Android
   m_EditorClassIdentifier: 
-  m_enabled: 0
+  m_enabled: 1
   nameUi: Ultraleap Hand Tracking
   version: 1.0.0
   featureIdInternal: com.ultraleap.tracking.openxr.feature.handtracking
@@ -975,7 +975,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c17aa731a6f4fb54bb9a2c28df667e5e, type: 3}
   m_Name: ViveAnchor Standalone
   m_EditorClassIdentifier: 
-  m_enabled: 0
+  m_enabled: 1
   nameUi: VIVE XR Anchor (Beta)
   version: 1.0.0
   featureIdInternal: vive.openxr.feature.htcanchor
