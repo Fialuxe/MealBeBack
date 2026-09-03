@@ -13,4 +13,4 @@ MonoBehaviour:
   m_Name: TrackerChoiceMap
   m_EditorClassIdentifier: 
   leftChoice: 3
-  rightChoice: 6
+  rightChoice: 1
