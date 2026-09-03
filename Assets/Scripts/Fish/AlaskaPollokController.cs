@@ -113,6 +113,19 @@ public class AlaskaPollokController : MonoBehaviour
 
     [Tooltip("壁の手前どれくらいから向き直りを始めるか(マージン)。")]
     public float boundsMargin = 1.2f;
+
+    [Space(4)]
+    [Tooltip("毎フレーム、海底 (Terrain.activeTerrain) より上へクランプする (#66)。")]
+    public bool keepAboveGround = true;
+
+    [Tooltip("海底からこの高さ以上を保つ [m]。")]
+    public float groundClearance = 0.3f;
+
+    [Tooltip("前方の地形を回避し始める距離 [m]。0 で回避なし (クランプのみ)。")]
+    public float groundLookAhead = 3f;
+
+    [Tooltip("回避を始める余裕高さ [m]。")]
+    public float groundAvoidClearance = 1.2f;
     #endregion
 
     // =====================================================================
@@ -423,9 +436,53 @@ public class AlaskaPollokController : MonoBehaviour
         if (dt <= 0f) return;
 
         UpdateSteering(dt);   // 目標の向き・速度を決める
+        if (keepAboveGround) AvoidGroundAhead(dt);  // 前方の地形を水平回避 (高さサンプルのみ)
         ApplyMotion(dt);      // 実際に向き・位置を更新
+        if (keepAboveGround) EnforceFloor();  // 海底より下へ抜けたら引き上げる (O(1))
         DriveSpine(dt);       // 背骨のうねり
         DrivePectorals(dt);   // 胸びれ
+    }
+
+    void AvoidGroundAhead(float dt)
+    {
+        Terrain terrain = Terrain.activeTerrain;
+        if (terrain == null || groundLookAhead <= 0f) return;
+
+        Vector3 p = transform.position;
+        Vector3 fwd = transform.forward; fwd.y = 0f;
+        if (fwd.sqrMagnitude < 1e-4f) return;
+        fwd.Normalize();
+        Vector3 right = new Vector3(fwd.z, 0f, -fwd.x);
+        float baseY = terrain.GetPosition().y;
+
+        float gAhead = terrain.SampleHeight(p + fwd * groundLookAhead) + baseY;
+        float margin = (gAhead + groundAvoidClearance) - p.y;
+        if (margin <= 0f) return;
+
+        float gL = terrain.SampleHeight(p + (fwd * 0.5f - right) * groundLookAhead) + baseY;
+        float gR = terrain.SampleHeight(p + (fwd * 0.5f + right) * groundLookAhead) + baseY;
+        float urgency = Mathf.Clamp01(margin / Mathf.Max(groundAvoidClearance, 0.5f));
+
+        _targetHeading += (gL <= gR ? -1f : 1f) * 100f * urgency * dt;
+        _targetPitch = Mathf.Min(_targetPitch, -Mathf.Min(maxPitchAngle, 22f) * urgency);
+    }
+
+    void EnforceFloor()
+    {
+        Terrain terrain = Terrain.activeTerrain;
+        if (terrain == null) return;
+
+        Vector3 p = transform.position;
+        float minY = terrain.SampleHeight(p) + terrain.GetPosition().y + groundClearance;
+        if (p.y >= minY) return;
+
+        p.y = minY;
+        transform.position = p;
+
+        // 海底沿いに登れるよう下向き成分を止める。
+        _pitchVel = 0f;
+        if (_pitch > 0f) _pitch = 0f;
+        _targetPitch = Mathf.Min(_targetPitch, -8f);
     }
     #endregion
 

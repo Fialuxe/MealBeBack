@@ -150,6 +150,39 @@ public class FishSystem : MonoBehaviour
     [SerializeField]
     private float spawnDepthMax = 2f;
 
+    [Header("海底クリアランス (#66 Terrain めり込み対策)")]
+    [SerializeField]
+    [Tooltip("毎フレーム、環境魚を海底 (Terrain / groundMask) より上へクランプする。")]
+    private bool keepAboveGround = true;
+
+    [SerializeField, Min(0f)]
+    [Tooltip("海底からこの高さ以上を保つ (m)。")]
+    private float groundClearance = 0.4f;
+
+    [SerializeField]
+    [Tooltip("Terrain.activeTerrain に加えて下方向レイで拾う地面レイヤ。None なら Terrain のみ。")]
+    private LayerMask groundRaycastMask = 0;
+
+    [SerializeField]
+    [Tooltip("前方の地形が迫っていたら水平に回避＋上昇する。1 匹あたり最大 3 回の高さサンプル (O(N))。")]
+    private bool avoidGroundAhead = true;
+
+    [SerializeField, Min(0.5f)]
+    [Tooltip("何 m 先の地形まで見るか。")]
+    private float groundLookAhead = 4f;
+
+    [SerializeField, Min(0f)]
+    [Tooltip("回避を始める余裕高さ (m)。groundClearance より大きめにして早めに避ける。")]
+    private float groundAvoidClearance = 1.6f;
+
+    [SerializeField, Min(0f)]
+    [Tooltip("回避時の最大ヨー操舵 (deg/s)。")]
+    private float groundAvoidTurnRate = 120f;
+
+    [SerializeField, Range(0f, 45f)]
+    [Tooltip("回避時の機首上げ角 (deg)。")]
+    private float groundAvoidPitchUp = 22f;
+
     [Header("段階進行 (QuizManager 用)")]
     [SerializeField]
     [Tooltip("OnCorrect のたびに 1 段階ずつ進む。空だと OnCorrect は何もしない。")]
@@ -315,6 +348,20 @@ public class FishSystem : MonoBehaviour
             _ambient[i].Tick(dt, anchorPos, this, i);
         }
 
+        // 海底より下へ抜けた個体を引き上げる (1 匹 O(1) = 全体 O(N))。
+        if (keepAboveGround)
+        {
+            for (int i = 0; i < _ambient.Count; i++)
+            {
+                AmbientFish f = _ambient[i];
+                if (f == null || !f.Alive)
+                    continue;
+                float floor = FloorYAt(f.Pos);
+                if (!float.IsNegativeInfinity(floor))
+                    f.EnforceFloor(floor + groundClearance);
+            }
+        }
+
         // スケトウダラの遊泳範囲をユーザーへ追従 (最大 maxPollock 匹)。
         for (int i = _pollocks.Count - 1; i >= 0; i--)
         {
@@ -404,7 +451,9 @@ public class FishSystem : MonoBehaviour
                 return g;
             }
         }
-        return Instantiate(cfg.prefab, _fishParent);
+        GameObject go = Instantiate(cfg.prefab, _fishParent);
+        FishMaterialConformer.Conform(go);   // #66 シーンのフォグを受け取るシェーダへ寄せる
+        return go;
     }
 
     /// <summary>環境魚 1 匹を非アクティブにして種別プールへ返す。プール枠が無ければ Destroy。</summary>
@@ -454,10 +503,51 @@ public class FishSystem : MonoBehaviour
             Random.Range(spawnDepthMin, spawnDepthMax),
             Mathf.Sin(ang) * dist);
 
+        // 海底へ埋まる位置には湧かせない。
+        if (keepAboveGround)
+        {
+            float floor = FloorYAt(p);
+            if (!float.IsNegativeInfinity(floor) && p.y < floor + groundClearance)
+                p.y = floor + groundClearance;
+        }
+
         // 接線方向 + ジッタを初期ヘディングに。
         float headingYaw = ang * Mathf.Rad2Deg + 90f + Random.Range(-30f, 30f);
         t.SetPositionAndRotation(p, Quaternion.Euler(0f, headingYaw, 0f));
     }
+
+    /// <summary>
+    /// worldPos の直下の地面の高さ (ワールド Y)。地面が無ければ -Infinity。O(1)。
+    /// Terrain.activeTerrain のハイトマップ参照が主。groundRaycastMask 指定時のみ下方向レイも足す。
+    /// </summary>
+    private float FloorYAt(Vector3 worldPos)
+    {
+        float y = float.NegativeInfinity;
+
+        Terrain terrain = Terrain.activeTerrain;
+        if (terrain != null)
+            y = terrain.SampleHeight(worldPos) + terrain.GetPosition().y;
+
+        if (groundRaycastMask.value != 0)
+        {
+            Vector3 from = worldPos + Vector3.up * 5f;
+            if (Physics.Raycast(from, Vector3.down, out RaycastHit hit, 60f,
+                                groundRaycastMask, QueryTriggerInteraction.Ignore))
+                y = Mathf.Max(y, hit.point.y);
+        }
+
+        return y;
+    }
+
+    // ── 地形回避 (AmbientFish.Tick から呼ばれる) ─────────────────────────
+    public bool  AvoidGroundEnabled     => keepAboveGround && avoidGroundAhead && Terrain.activeTerrain != null;
+    public float GroundLookAhead        => groundLookAhead;
+    public float GroundAvoidClearance   => groundAvoidClearance;
+    public float GroundAvoidTurnRate    => groundAvoidTurnRate;
+    public float GroundAvoidPitchUp     => groundAvoidPitchUp;
+
+    /// <summary>worldPos 直下の地面の高さ (ワールド Y)。無ければ -Infinity。O(1)。</summary>
+    public float GroundHeightAt(Vector3 worldPos) => FloorYAt(worldPos);
 
     private void RecycleOldestAmbient()
     {
@@ -779,6 +869,7 @@ public class FishSystem : MonoBehaviour
         if (fish == null)
         {
             fish = Instantiate(pollockPrefab, _fishParent);
+            FishMaterialConformer.Conform(fish.gameObject);   // #66 フォグ対応シェーダへ
         }
         return fish;
     }
