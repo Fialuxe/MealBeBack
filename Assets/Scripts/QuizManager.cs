@@ -125,7 +125,7 @@ public class QuizManager : MonoBehaviour
     //   回復フェーズ (正解時のみ)       : → 20 → 0 → 40 → 0 → 60 → 0 → 80 → 100
     // 各要素は「そのステップで到達する充填率 (%)」。キー入力 1 回で 1 ステップ進む。
     private static readonly int[] DecayTargets = { 0, 80, 0, 60, 0, 40, 0, 20, 0 };
-    private static readonly int[] RecoveryTargets = { 20, 0, 40, 0, 60, 0, 80, 100 };
+    private static readonly int[] RecoveryTargets = { 20, 0, 40, 0, 60, 0, 80, 0, 100 };
 
     // #45 ①: 本来はトラッカー位置から特定する。当面は KeyboardManager /
     // ExperienceFlowController のキー入力 (G / H) で NotifyDeviceSelected 経由で設定する。
