@@ -38,6 +38,7 @@ namespace MealBeBack.Tracking
             public ButtonControl isTracked;
             public Vector3Control position;
             public QuaternionControl rotation;
+            public bool wasTracked;
         }
 
         private readonly Dictionary<TrackerRole, Slot> _slots = new();
@@ -92,6 +93,27 @@ namespace MealBeBack.Tracking
             {
                 _nextScan = Time.unscaledTime + rescanInterval;
                 Rescan();
+            }
+
+            if (!verbose) return;
+
+            // isTracked の遷移だけを出す。どのロールに実トラッカーが居るかが分かる。
+            foreach (var kv in _slots)
+            {
+                bool now = IsTracked(kv.Key);
+                if (now == kv.Value.wasTracked) continue;
+                kv.Value.wasTracked = now;
+
+                if (now)
+                {
+                    int st = kv.Value.device.TryGetChildControl<IntegerControl>("trackingState")?.ReadValue() ?? -1;
+                    Vector3 p = kv.Value.position != null ? kv.Value.position.ReadValue() : Vector3.zero;
+                    Debug.Log($"[TrackerRig] ★ {kv.Key}: トラッキング開始 (trackingState={st}, pos={p:F2})");
+                }
+                else
+                {
+                    Debug.Log($"[TrackerRig] {kv.Key}: ロスト");
+                }
             }
         }
 
