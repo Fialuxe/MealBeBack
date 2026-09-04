@@ -288,8 +288,14 @@ public class QuizManager : MonoBehaviour
 
         if (currentPhase == QuestionPhase.ReturningDevice)
         {
-            if (!invalidDistance &&
-                distanceToCamera > selectionPreviewDistance)
+            // 口元にある「選択デバイス」以外の距離では判定しない。
+            // 選択デバイスがトラッキングロスト (口元でのオクルージョン等) すると
+            // QuizTrackerInput は反対側 (遠くに置いた) デバイスの距離を送ってくるため、
+            // その遠い距離で誤って次へ進む / 次の問題を巻き込んでスキップするのを防ぐ。
+            if (device != selectedDevice || invalidDistance)
+                return;
+
+            if (distanceToCamera > selectionPreviewDistance)
             {
                 Debug.Log(
                     "[Quiz] デバイスが口元から離れたことを確認 → 次の問題へ"
