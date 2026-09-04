@@ -96,6 +96,17 @@ public class KeyboardManager : MonoBehaviour
                 return;
             }
 
+            if (flow.IsResultAnnouncement)
+            {
+                if (Pressed(kb, startQuizKey) ||
+                    Pressed(kb, numpadStartQuizKey))
+                {
+                    flow.RequestShowFinalResult();
+                }
+
+                return;
+            }
+
             if (flow.IsResult)
             {
                 if (Pressed(kb, startQuizKey) || Pressed(kb, numpadStartQuizKey))

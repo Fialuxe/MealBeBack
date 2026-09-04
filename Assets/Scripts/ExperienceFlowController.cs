@@ -52,6 +52,8 @@ public class ExperienceFlowController : MonoBehaviour
 
     public bool IsReady => currentState == FlowState.Ready;
     public bool IsQuiz => currentState == FlowState.Quiz;
+    public bool IsResultAnnouncement =>
+        currentState == FlowState.ResultAnnouncement;
     public bool IsResult => currentState == FlowState.Result;
     public bool IsBusy => isLoading;
 
@@ -65,6 +67,22 @@ public class ExperienceFlowController : MonoBehaviour
     }
 
     /// <summary>Result 状態なら SetupScene へ戻る。KeyboardManager など外部入力から呼ぶ。</summary>
+    
+    /// <summary>
+    /// ResultAnnouncement 状態なら最終Result画面へ進む。
+    /// KeyboardManagerなど外部入力から呼ぶ。
+    /// </summary>
+    public void RequestShowFinalResult()
+    {
+        if (isLoading ||
+            currentState != FlowState.ResultAnnouncement)
+        {
+            return;
+        }
+
+        ShowFinalResult();
+    }
+    
     public void RequestReturnToSetup()
     {
         if (isLoading || currentState != FlowState.Result)
