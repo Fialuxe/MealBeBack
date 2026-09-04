@@ -9,7 +9,8 @@ public class QuizManager : MonoBehaviour
         WaitingForHold,      // 手に持つ
         WaitingForMouth,     // 口元へ運ぶ → くわえた瞬間に正誤判定
         Chewing,             // 咀嚼シーケンスをキー1回ごとに1ステップ進める
-        ShowingFeedback      // 結果表示 → 次の問題へ
+        ShowingFeedback,     // 結果表示 → 次の問題へ
+        ReturningDevice      // デバイスを元の場所に戻す → 次の問題へ
     }
 
     public enum AnswerSide
@@ -82,6 +83,10 @@ public class QuizManager : MonoBehaviour
 
     [SerializeField]
     private AudioClip incorrectSE;
+
+    [SerializeField]
+    private string returnDeviceMessage =
+        "デバイスを口から離し、元の場所に戻してください";
 
     [Header("Instruction Messages")]
     [SerializeField]
@@ -276,13 +281,31 @@ public class QuizManager : MonoBehaviour
         SerialSystem.SerialDevice device,
         float distanceToCamera)
     {
-        if (!quizRunning || answerLocked)
+        if (!quizRunning)
             return;
 
         bool invalidDistance =
             float.IsNaN(distanceToCamera) ||
             float.IsInfinity(distanceToCamera) ||
             distanceToCamera < 0f;
+
+        if (currentPhase == QuestionPhase.ReturningDevice)
+        {
+            if (!invalidDistance &&
+                distanceToCamera > selectionPreviewDistance)
+            {
+                Debug.Log(
+                    "[Quiz] デバイスが口元から離れたことを確認 → 次の問題へ"
+                );
+
+                GoToNextQuestion();
+            }
+
+            return;
+        }
+
+        if (answerLocked)
+            return;
 
         if (device == SerialSystem.SerialDevice.None ||
             invalidDistance ||
@@ -648,6 +671,9 @@ public class QuizManager : MonoBehaviour
 
             case QuestionPhase.ShowingFeedback:
                 break;
+
+            case QuestionPhase.ReturningDevice:
+                break;
         }
     }
 
@@ -951,6 +977,12 @@ public class QuizManager : MonoBehaviour
     {
         yield return new WaitForSeconds(feedbackDuration);
 
-        ContinueAfterFeedback();
+        currentPhase = QuestionPhase.ReturningDevice;
+
+        ShowInstruction(returnDeviceMessage);
+
+        Debug.Log(
+            "[Quiz] デバイス返却待ち"
+        );
     }
 }
