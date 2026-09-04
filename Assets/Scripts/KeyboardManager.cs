@@ -159,7 +159,6 @@ public class KeyboardManager : MonoBehaviour
             || Pressed(kb, numpadStartQuizKey))
         {
             quiz.AdvanceInstruction();
-            quiz.ContinueAfterFeedback();
             return;
         }
 

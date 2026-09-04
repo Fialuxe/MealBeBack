@@ -10,7 +10,7 @@ public class QuizManager : MonoBehaviour
         WaitingForMouth,     // 口元へ運ぶ → くわえた瞬間に正誤判定
         Chewing,             // 咀嚼シーケンスをキー1回ごとに1ステップ進める
         ShowingFeedback,     // 結果表示 → 次の問題へ
-        ReturningDevice      // デバイスを元の場所に戻す → 次の問題へ
+        ReturningDevice      // 操作者が返却を目視確認し、新しいキー入力で次の問題へ
     }
 
     public enum AnswerSide
@@ -118,6 +118,9 @@ public class QuizManager : MonoBehaviour
     [Min(0f)]
     [SerializeField]
     private float selectionConfirmedDistance = 0.2f;
+
+    private Coroutine feedbackCoroutine;
+    private int returnInstructionFrame = -1;
 
     // ── 咀嚼シーケンス定義 ───────────────────────────────────────────────────
     //
@@ -288,16 +291,7 @@ public class QuizManager : MonoBehaviour
 
         if (currentPhase == QuestionPhase.ReturningDevice)
         {
-            if (!invalidDistance &&
-                distanceToCamera > selectionPreviewDistance)
-            {
-                Debug.Log(
-                    "[Quiz] デバイスが口元から離れたことを確認 → 次の問題へ"
-                );
-
-                GoToNextQuestion();
-            }
-
+            // 返却は操作者が目視確認する。距離から自動進行しない。
             return;
         }
 
@@ -505,10 +499,20 @@ public class QuizManager : MonoBehaviour
         );
     }
 
+    private void CancelFeedbackDelay()
+    {
+        if (feedbackCoroutine != null)
+            StopCoroutine(feedbackCoroutine);
+        feedbackCoroutine = null;
+        returnInstructionFrame = -1;
+    }
+
     private void ShowQuestion(int index)
     {
         if (index < 0 || index >= questions.Length)
             return;
+
+        CancelFeedbackDelay();
 
         HideAllQuestions();
 
@@ -594,6 +598,7 @@ public class QuizManager : MonoBehaviour
 
     private void FinishQuiz()
     {
+        CancelFeedbackDelay();
         quizRunning = false;
         expectedFillPercent = 0;
 
@@ -666,6 +671,9 @@ public class QuizManager : MonoBehaviour
                 break;
 
             case QuestionPhase.ReturningDevice:
+                // 返却案内が出たフレームの入力は使い回さない。
+                if (Time.frameCount > returnInstructionFrame)
+                    GoToNextQuestion();
                 break;
         }
     }
@@ -844,7 +852,7 @@ public class QuizManager : MonoBehaviour
             }
         }
 
-        StartCoroutine(ContinueAfterFeedbackDelay());
+        feedbackCoroutine = StartCoroutine(ContinueAfterFeedbackDelay());
 
         Debug.Log(
             $"[Quiz] 咀嚼シーケンス完了 ({(answerWasCorrect ? "正解" : "不正解")}) → 充填率 {expectedFillPercent}%"
@@ -892,7 +900,10 @@ public class QuizManager : MonoBehaviour
             currentPhase != QuestionPhase.ShowingFeedback)
             return;
 
-        GoToNextQuestion();
+        CancelFeedbackDelay();
+        currentPhase = QuestionPhase.ReturningDevice;
+        returnInstructionFrame = Time.frameCount;
+        ShowInstruction(returnDeviceMessage);
     }
 
     private void ShowInstruction(string message)
@@ -941,13 +952,7 @@ public class QuizManager : MonoBehaviour
     private IEnumerator ContinueAfterFeedbackDelay()
     {
         yield return new WaitForSeconds(feedbackDuration);
-
-        currentPhase = QuestionPhase.ReturningDevice;
-
-        ShowInstruction(returnDeviceMessage);
-
-        Debug.Log(
-            "[Quiz] デバイス返却待ち"
-        );
+        feedbackCoroutine = null;
+        ContinueAfterFeedback();
     }
 }
