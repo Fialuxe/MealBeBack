@@ -59,10 +59,6 @@ public class QuizManager : MonoBehaviour
     [SerializeField]
     private bool respectDeviceBusy = true;
 
-    [Header("Debug Score UI")]
-    [SerializeField]
-    private TMPro.TMP_Text scoreText;
-
     [Header("Instruction UI")]
     [SerializeField]
     private GameObject instructionRoot;
@@ -158,6 +154,8 @@ public class QuizManager : MonoBehaviour
     public bool IsQuizRunning => quizRunning;
     public int CurrentQuestionIndex => currentQuestionIndex;
     public int Score => score;
+    public int QuestionCount =>
+        questions != null ? questions.Length : 0;
     public bool HasSelectedAnswer => hasSelectedAnswer;
     public SerialSystem.SerialDevice SelectedDevice => selectedDevice;
 
@@ -165,7 +163,6 @@ public class QuizManager : MonoBehaviour
     {
         SetInstructionVisible(false);
         HideAllQuestions();
-        UpdateScoreDisplay();
 
         if (fishSystem == null)
         {
@@ -399,8 +396,6 @@ public class QuizManager : MonoBehaviour
 
         ShowQuestion(0);
 
-        UpdateScoreDisplay();
-
         Debug.Log(
             $"[Quiz] 全 {questions.Length} 問で開始"
         );
@@ -616,8 +611,6 @@ public class QuizManager : MonoBehaviour
             $"[Quiz] 全問題終了 最終Score = {score}/{questions.Length}"
         );
 
-        UpdateScoreDisplay();
-
         if (gameFlow != null)
         {
             gameFlow.ShowResult();
@@ -772,8 +765,6 @@ public class QuizManager : MonoBehaviour
                 Debug.LogWarning("[Quiz] FogSystem が設定されていません");
         }
 
-        UpdateScoreDisplay();
-
         Debug.Log(
             $"[Quiz] 判定: {(answerWasCorrect ? "正解" : "不正解")} Score = {score}"
         );
@@ -912,16 +903,10 @@ public class QuizManager : MonoBehaviour
 
         if (instructionText == null)
         {
-            if (scoreText != null)
-            {
-                UpdateScoreDisplay();
-                return;
-            }
-
             if (!instructionWarningLogged)
             {
                 Debug.LogWarning(
-                    "[Quiz] Instruction Text と Score Text が設定されていないため、指示を表示できません"
+                "[Quiz] Instruction Text が設定されていないため、指示を表示できません"
                 );
                 instructionWarningLogged = true;
             }
@@ -939,8 +924,6 @@ public class QuizManager : MonoBehaviour
         {
             currentInstructionMessage = "";
 
-            if (instructionText == null)
-                UpdateScoreDisplay();
         }
 
         if (instructionRoot != null)
@@ -952,24 +935,6 @@ public class QuizManager : MonoBehaviour
         if (instructionText != null)
         {
             instructionText.gameObject.SetActive(visible);
-        }
-    }
-
-    private void UpdateScoreDisplay()
-    {
-        if (scoreText == null)
-            return;
-
-        if (instructionText == null &&
-            !string.IsNullOrEmpty(currentInstructionMessage))
-        {
-            scoreText.text =
-                $"Score : {score}\n\n{currentInstructionMessage}";
-        }
-        else
-        {
-            scoreText.text =
-                $"Score : {score}";
         }
     }
 
