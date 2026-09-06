@@ -11115,6 +11115,10 @@ PrefabInstance:
       propertyPath: questions.Array.data[4].questionObject
       value: 
       objectReference: {fileID: 7584590866755907725}
+    - target: {fileID: 4879517844944023008, guid: 233cf16d0e8cdbe48bfa38fe6159b859, type: 3}
+      propertyPath: questions.Array.data[1].rightAnswerName
+      value: "つみれ"
+      objectReference: {fileID: 0}
     - target: {fileID: 5795160069572760456, guid: 233cf16d0e8cdbe48bfa38fe6159b859, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
