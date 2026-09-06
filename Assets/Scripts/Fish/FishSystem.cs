@@ -228,8 +228,16 @@ public class FishSystem : MonoBehaviour
     private float emergeSettleTime = 0.4f;
 
     [SerializeField, Min(0f)]
-    [Tooltip("放出後のスケトウダラの水平遊泳半径。0 なら環境魚と同じ spawnRingMax に合わせる (#89)。")]
-    private float pollockRoamRadius = 0f;
+    [Tooltip("放出後のスケトウダラが近づきすぎたら離れる距離 (#89)。既定は環境魚 Bluefin と同じ。")]
+    private float pollockBandInner = 15f;
+
+    [SerializeField, Min(0f)]
+    [Tooltip("放出後のスケトウダラが遠すぎたら戻る距離 (#89)。既定は環境魚 Bluefin と同じ。")]
+    private float pollockBandOuter = 32f;
+
+    [SerializeField, Range(0f, 1f)]
+    [Tooltip("帯外での操舵の強さ。既定は環境魚 Bluefin と同じ。")]
+    private float pollockBandPull = 0.6f;
 
     [Header("デバッグ")]
     [SerializeField]
@@ -363,10 +371,9 @@ public class FishSystem : MonoBehaviour
             }
         }
 
-        // 放出済みスケトウダラの遊泳帯をユーザー基準へ更新する (最大 maxPollock 匹)。
-        // 環境魚 (AmbientFish) の遊泳バンドも anchor 相対なので、それに揃えている。
-        // 箱は EmergeRoutine で spawnRing 相当まで広げてあるため、旧実装のような
-        // 「顔の周りを回り続ける」挙動にはならない (#89)。
+        // 放出済みスケトウダラの遊泳帯 (Anchor Band) 基準点をユーザー基準へ更新する (最大 maxPollock 匹)。
+        // 環境魚 (AmbientFish) と全く同じ距離帯方式 (近すぎれば離れる/遠すぎれば戻る/間は無補正) を
+        // AlaskaPollokController 側にも実装済みなので、それに揃えている (#89)。
         for (int i = _pollocks.Count - 1; i >= 0; i--)
         {
             AlaskaPollokController p = _pollocks[i];
@@ -375,7 +382,7 @@ public class FishSystem : MonoBehaviour
                 _pollocks.RemoveAt(i);
                 continue;
             }
-            p.SetBoundsCenter(anchorPos);
+            p.SetAnchorPosition(anchorPos);
         }
     }
 
@@ -951,16 +958,17 @@ public class FishSystem : MonoBehaviour
 
         fish.Cruise();
 
-        // 放出後は環境魚と同じ遊泳ボリュームに馴染ませる (#89)。
-        // 旧実装はカメラ直付けの半径 6m 箱に閉じ込めていたため、Perlin 徘徊が
-        // 常に箱の壁で跳ね返され「顔の周りを回り続ける」挙動になっていた。
-        // spawnRing / spawnDepth 相当まで広げると、環境魚と同様に周囲を回遊する。
-        float roamRadius = pollockRoamRadius > 0f ? pollockRoamRadius : spawnRingMax;
-        float roamHeight = Mathf.Max(2f, spawnDepthMax - spawnDepthMin);
-        fish.boundsSize = new Vector3(roamRadius * 2f, roamHeight, roamRadius * 2f);
-        fish.boundsMargin = Mathf.Max(fish.boundsMargin, roamRadius * 0.5f);
-        fish.useBounds = true;
-        fish.SetBoundsCenter(anchor.position);
+        // 放出後は環境魚 (Bluefin) と全く同じ距離帯方式で回遊させる (#89)。
+        // 旧実装は「箱」をユーザーへ毎フレーム再センタリングしていたため、箱を広げても
+        // 近づきすぎを離す力が無く、常にユーザーの至近距離に留まって旋回して見えていた。
+        // bandInner/bandOuter 方式なら、近すぎれば離れ・遠すぎれば戻るだけで、間は
+        // 環境魚と同様に無補正で自由に泳ぐため、自然な回遊に見える。
+        fish.useBounds = false;
+        fish.useAnchorBand = true;
+        fish.bandInner = pollockBandInner;
+        fish.bandOuter = pollockBandOuter;
+        fish.bandPull = pollockBandPull;
+        fish.SetAnchorPosition(anchor.position);
         fish.SetWandering(true);
         fish.ClearManualOverride();
 
