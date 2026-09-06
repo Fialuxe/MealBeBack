@@ -129,6 +129,35 @@ public class AlaskaPollokController : MonoBehaviour
     #endregion
 
     // =====================================================================
+    #region 5b. 遊泳帯 (Anchor Band : 環境魚と同じ回遊挙動 #89)
+    // =====================================================================
+    [Header("■ 遊泳帯 (Anchor Band : 環境魚と同じ回遊)")]
+    [Tooltip("有効にすると遊泳範囲(箱)の代わりに、ユーザー基準点からの距離帯で操舵する(環境魚 AmbientFish と同じ方式)。" +
+             "近すぎれば離れ、遠すぎれば戻るだけで、帯の間は補正なしで自由に泳ぐため『顔の周りを回り続ける』挙動にならない。")]
+    public bool useAnchorBand = false;
+
+    [Tooltip("これより近いと離れる (m)。")]
+    public float bandInner = 15f;
+
+    [Tooltip("これより遠いと戻る (m)。")]
+    public float bandOuter = 32f;
+
+    [Range(0f, 1f), Tooltip("帯外での操舵の強さ。")]
+    public float bandPull = 0.6f;
+
+    [Tooltip("好む深度 = アンカーの Y + これ (m)。")]
+    public float bandDepthOffset = -1.8f;
+
+    [Range(0f, 1f), Tooltip("深度への引き戻しの強さ。")]
+    public float bandDepthPull = 0.4f;
+
+    Vector3 _anchorWorldPos;
+
+    /// <summary>遊泳帯 (Anchor Band) の基準点をワールド座標で設定し直す。</summary>
+    public void SetAnchorPosition(Vector3 worldPos) => _anchorWorldPos = worldPos;
+    #endregion
+
+    // =====================================================================
     #region 6. 障害物回避 (Obstacle Avoidance : 任意)
     // =====================================================================
     [Header("■ 障害物回避 (任意・Collider が必要)")]
@@ -526,8 +555,9 @@ public class AlaskaPollokController : MonoBehaviour
             _targetSpeed = Mathf.Lerp(wanderMinSpeed, wanderMaxSpeed, nSpd);
         }
 
-        // --- 3) 遊泳範囲で囲い込み（壁に近づくほど中央へ向き直る） ---
-        if (useBounds) ApplyBounds();
+        // --- 3) 遊泳範囲: 距離帯方式(環境魚と同じ) or 箱方式で囲い込み ---
+        if (useAnchorBand) ApplyAnchorBand();
+        else if (useBounds) ApplyBounds();
 
         // --- 4) 障害物回避（任意） ---
         if (avoidObstacles) ApplyObstacleAvoidance();
@@ -566,6 +596,37 @@ public class AlaskaPollokController : MonoBehaviour
         float soft = Mathf.Max(0.01f, boundsMargin);
         float over = (Mathf.Abs(pos) - (half - soft)) / soft;
         return Mathf.Clamp01(over);
+    }
+
+    /// <summary>
+    /// AmbientFish.Tick と同じ距離帯ロジック。bandInner〜bandOuter の間は無補正で自由に泳がせ、
+    /// 近すぎれば離れる方向、遠すぎれば戻る方向へ目標ヨーをブレンドする。深度も同様に緩く引き戻す。
+    /// </summary>
+    void ApplyAnchorBand()
+    {
+        Vector3 pos = transform.position;
+        Vector3 flat = _anchorWorldPos - pos;
+        flat.y = 0f;
+        float d = flat.magnitude;
+        if (d > 0.001f)
+        {
+            float inwardYaw = Mathf.Atan2(flat.x, flat.z) * Mathf.Rad2Deg;
+            if (d > bandOuter)
+            {
+                float w = Mathf.Clamp01((d - bandOuter) / Mathf.Max(bandOuter, 0.01f)) * bandPull;
+                _targetHeading = Mathf.LerpAngle(_targetHeading, inwardYaw, w);
+            }
+            else if (d < bandInner)
+            {
+                float w = Mathf.Clamp01((bandInner - d) / Mathf.Max(bandInner, 0.01f)) * bandPull;
+                _targetHeading = Mathf.LerpAngle(_targetHeading, inwardYaw + 180f, w);
+            }
+        }
+
+        float targetY = _anchorWorldPos.y + bandDepthOffset;
+        float yErr = targetY - pos.y;
+        float depthPitch = Mathf.Clamp(-yErr * 10f, -maxPitchAngle, maxPitchAngle);
+        _targetPitch = Mathf.Lerp(_targetPitch, depthPitch, bandDepthPull);
     }
 
     void ApplyObstacleAvoidance()
@@ -783,12 +844,32 @@ public class AlaskaPollokController : MonoBehaviour
         return a;
     }
 
+    static void DrawGizmoRing(Vector3 center, float radius, int seg = 48)
+    {
+        float step = Mathf.PI * 2f / seg;
+        Vector3 prev = center + new Vector3(radius, 0f, 0f);
+        for (int i = 1; i <= seg; i++)
+        {
+            float ang = i * step;
+            Vector3 next = center + new Vector3(Mathf.Cos(ang) * radius, 0f, Mathf.Sin(ang) * radius);
+            Gizmos.DrawLine(prev, next);
+            prev = next;
+        }
+    }
+
     void OnDrawGizmosSelected()
     {
         if (!drawGizmos) return;
 
         // 遊泳範囲
-        if (useBounds)
+        if (useAnchorBand)
+        {
+            Vector3 c = Application.isPlaying ? _anchorWorldPos : transform.position;
+            Gizmos.color = new Color(0.2f, 1f, 0.5f, 0.35f);
+            DrawGizmoRing(c, bandInner);
+            DrawGizmoRing(c, bandOuter);
+        }
+        else if (useBounds)
         {
             Vector3 c = Application.isPlaying ? _boundsWorldCenter
                                               : transform.position + boundsCenterOffset;
