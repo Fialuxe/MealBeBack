@@ -227,8 +227,9 @@ public class FishSystem : MonoBehaviour
     [SerializeField]
     private float emergeSettleTime = 0.4f;
 
-    [SerializeField]
-    private float pollockWanderRadius = 6f;
+    [SerializeField, Min(0f)]
+    [Tooltip("放出後のスケトウダラの水平遊泳半径。0 なら環境魚と同じ spawnRingMax に合わせる (#89)。")]
+    private float pollockRoamRadius = 0f;
 
     [Header("デバッグ")]
     [SerializeField]
@@ -362,7 +363,10 @@ public class FishSystem : MonoBehaviour
             }
         }
 
-        // スケトウダラの遊泳範囲をユーザーへ追従 (最大 maxPollock 匹)。
+        // 放出済みスケトウダラの遊泳帯をユーザー基準へ更新する (最大 maxPollock 匹)。
+        // 環境魚 (AmbientFish) の遊泳バンドも anchor 相対なので、それに揃えている。
+        // 箱は EmergeRoutine で spawnRing 相当まで広げてあるため、旧実装のような
+        // 「顔の周りを回り続ける」挙動にはならない (#89)。
         for (int i = _pollocks.Count - 1; i >= 0; i--)
         {
             AlaskaPollokController p = _pollocks[i];
@@ -946,8 +950,15 @@ public class FishSystem : MonoBehaviour
         }
 
         fish.Cruise();
-        Vector3 bs = fish.boundsSize;
-        fish.boundsSize = new Vector3(pollockWanderRadius * 2f, bs.y, pollockWanderRadius * 2f);
+
+        // 放出後は環境魚と同じ遊泳ボリュームに馴染ませる (#89)。
+        // 旧実装はカメラ直付けの半径 6m 箱に閉じ込めていたため、Perlin 徘徊が
+        // 常に箱の壁で跳ね返され「顔の周りを回り続ける」挙動になっていた。
+        // spawnRing / spawnDepth 相当まで広げると、環境魚と同様に周囲を回遊する。
+        float roamRadius = pollockRoamRadius > 0f ? pollockRoamRadius : spawnRingMax;
+        float roamHeight = Mathf.Max(2f, spawnDepthMax - spawnDepthMin);
+        fish.boundsSize = new Vector3(roamRadius * 2f, roamHeight, roamRadius * 2f);
+        fish.boundsMargin = Mathf.Max(fish.boundsMargin, roamRadius * 0.5f);
         fish.useBounds = true;
         fish.SetBoundsCenter(anchor.position);
         fish.SetWandering(true);
