@@ -9,7 +9,8 @@ public class QuizManager : MonoBehaviour
         WaitingForHold,      // 手に持つ
         WaitingForMouth,     // 口元へ運ぶ → くわえた瞬間に正誤判定
         Chewing,             // 咀嚼シーケンスをキー1回ごとに1ステップ進める
-        ShowingFeedback      // 結果表示 → 次の問題へ
+        ShowingFeedback,     // 結果表示 → 次の問題へ
+        ReturningDevice      // 操作者が返却を目視確認し、新しいキー入力で次の問題へ
     }
 
     public enum AnswerSide
@@ -58,10 +59,6 @@ public class QuizManager : MonoBehaviour
     [SerializeField]
     private bool respectDeviceBusy = true;
 
-    [Header("Debug Score UI")]
-    [SerializeField]
-    private TMPro.TMP_Text scoreText;
-
     [Header("Instruction UI")]
     [SerializeField]
     private GameObject instructionRoot;
@@ -82,6 +79,10 @@ public class QuizManager : MonoBehaviour
 
     [SerializeField]
     private AudioClip incorrectSE;
+
+    [SerializeField]
+    private string returnDeviceMessage =
+        "デバイスを口から離し、元の場所に戻してください";
 
     [Header("Instruction Messages")]
     [SerializeField]
@@ -118,6 +119,9 @@ public class QuizManager : MonoBehaviour
     [SerializeField]
     private float selectionConfirmedDistance = 0.2f;
 
+    private Coroutine feedbackCoroutine;
+    private int returnInstructionFrame = -1;
+
     // ── 咀嚼シーケンス定義 ───────────────────────────────────────────────────
     //
     // 問題開始時、デバイスは必ず 100%。
@@ -153,6 +157,8 @@ public class QuizManager : MonoBehaviour
     public bool IsQuizRunning => quizRunning;
     public int CurrentQuestionIndex => currentQuestionIndex;
     public int Score => score;
+    public int QuestionCount =>
+        questions != null ? questions.Length : 0;
     public bool HasSelectedAnswer => hasSelectedAnswer;
     public SerialSystem.SerialDevice SelectedDevice => selectedDevice;
 
@@ -160,7 +166,6 @@ public class QuizManager : MonoBehaviour
     {
         SetInstructionVisible(false);
         HideAllQuestions();
-        UpdateScoreDisplay();
 
         if (fishSystem == null)
         {
@@ -276,13 +281,22 @@ public class QuizManager : MonoBehaviour
         SerialSystem.SerialDevice device,
         float distanceToCamera)
     {
-        if (!quizRunning || answerLocked)
+        if (!quizRunning)
             return;
 
         bool invalidDistance =
             float.IsNaN(distanceToCamera) ||
             float.IsInfinity(distanceToCamera) ||
             distanceToCamera < 0f;
+
+        if (currentPhase == QuestionPhase.ReturningDevice)
+        {
+            // 返却は操作者が目視確認する。距離から自動進行しない。
+            return;
+        }
+
+        if (answerLocked)
+            return;
 
         if (device == SerialSystem.SerialDevice.None ||
             invalidDistance ||
@@ -375,8 +389,6 @@ public class QuizManager : MonoBehaviour
         }
 
         ShowQuestion(0);
-
-        UpdateScoreDisplay();
 
         Debug.Log(
             $"[Quiz] 全 {questions.Length} 問で開始"
@@ -487,10 +499,20 @@ public class QuizManager : MonoBehaviour
         );
     }
 
+    private void CancelFeedbackDelay()
+    {
+        if (feedbackCoroutine != null)
+            StopCoroutine(feedbackCoroutine);
+        feedbackCoroutine = null;
+        returnInstructionFrame = -1;
+    }
+
     private void ShowQuestion(int index)
     {
         if (index < 0 || index >= questions.Length)
             return;
+
+        CancelFeedbackDelay();
 
         HideAllQuestions();
 
@@ -576,6 +598,7 @@ public class QuizManager : MonoBehaviour
 
     private void FinishQuiz()
     {
+        CancelFeedbackDelay();
         quizRunning = false;
         expectedFillPercent = 0;
 
@@ -592,8 +615,6 @@ public class QuizManager : MonoBehaviour
         Debug.Log(
             $"[Quiz] 全問題終了 最終Score = {score}/{questions.Length}"
         );
-
-        UpdateScoreDisplay();
 
         if (gameFlow != null)
         {
@@ -647,6 +668,12 @@ public class QuizManager : MonoBehaviour
                 break;
 
             case QuestionPhase.ShowingFeedback:
+                break;
+
+            case QuestionPhase.ReturningDevice:
+                // 返却案内が出たフレームの入力は使い回さない。
+                if (Time.frameCount > returnInstructionFrame)
+                    GoToNextQuestion();
                 break;
         }
     }
@@ -746,8 +773,6 @@ public class QuizManager : MonoBehaviour
                 Debug.LogWarning("[Quiz] FogSystem が設定されていません");
         }
 
-        UpdateScoreDisplay();
-
         Debug.Log(
             $"[Quiz] 判定: {(answerWasCorrect ? "正解" : "不正解")} Score = {score}"
         );
@@ -827,7 +852,7 @@ public class QuizManager : MonoBehaviour
             }
         }
 
-        StartCoroutine(ContinueAfterFeedbackDelay());
+        feedbackCoroutine = StartCoroutine(ContinueAfterFeedbackDelay());
 
         Debug.Log(
             $"[Quiz] 咀嚼シーケンス完了 ({(answerWasCorrect ? "正解" : "不正解")}) → 充填率 {expectedFillPercent}%"
@@ -875,7 +900,10 @@ public class QuizManager : MonoBehaviour
             currentPhase != QuestionPhase.ShowingFeedback)
             return;
 
-        GoToNextQuestion();
+        CancelFeedbackDelay();
+        currentPhase = QuestionPhase.ReturningDevice;
+        returnInstructionFrame = Time.frameCount;
+        ShowInstruction(returnDeviceMessage);
     }
 
     private void ShowInstruction(string message)
@@ -886,16 +914,10 @@ public class QuizManager : MonoBehaviour
 
         if (instructionText == null)
         {
-            if (scoreText != null)
-            {
-                UpdateScoreDisplay();
-                return;
-            }
-
             if (!instructionWarningLogged)
             {
                 Debug.LogWarning(
-                    "[Quiz] Instruction Text と Score Text が設定されていないため、指示を表示できません"
+                "[Quiz] Instruction Text が設定されていないため、指示を表示できません"
                 );
                 instructionWarningLogged = true;
             }
@@ -913,8 +935,6 @@ public class QuizManager : MonoBehaviour
         {
             currentInstructionMessage = "";
 
-            if (instructionText == null)
-                UpdateScoreDisplay();
         }
 
         if (instructionRoot != null)
@@ -929,28 +949,10 @@ public class QuizManager : MonoBehaviour
         }
     }
 
-    private void UpdateScoreDisplay()
-    {
-        if (scoreText == null)
-            return;
-
-        if (instructionText == null &&
-            !string.IsNullOrEmpty(currentInstructionMessage))
-        {
-            scoreText.text =
-                $"Score : {score}\n\n{currentInstructionMessage}";
-        }
-        else
-        {
-            scoreText.text =
-                $"Score : {score}";
-        }
-    }
-
     private IEnumerator ContinueAfterFeedbackDelay()
     {
         yield return new WaitForSeconds(feedbackDuration);
-
+        feedbackCoroutine = null;
         ContinueAfterFeedback();
     }
 }

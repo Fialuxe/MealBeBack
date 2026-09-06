@@ -8,6 +8,7 @@ public class ExperienceFlowController : MonoBehaviour
     {
         Ready,
         Quiz,
+        ResultAnnouncement,
         Result
     }
 
@@ -29,6 +30,13 @@ public class ExperienceFlowController : MonoBehaviour
     [SerializeField]
     private QuizManager quizManager;
 
+    [Header("Result UI")]
+    [SerializeField]
+    private TMPro.TMP_Text resultText;
+
+    [SerializeField]
+    private TMPro.TMP_Text resultScoreText;
+
     [Header("Audio")]
     [SerializeField]
     private AudioSource bgmSource;
@@ -44,6 +52,8 @@ public class ExperienceFlowController : MonoBehaviour
 
     public bool IsReady => currentState == FlowState.Ready;
     public bool IsQuiz => currentState == FlowState.Quiz;
+    public bool IsResultAnnouncement =>
+        currentState == FlowState.ResultAnnouncement;
     public bool IsResult => currentState == FlowState.Result;
     public bool IsBusy => isLoading;
 
@@ -57,6 +67,22 @@ public class ExperienceFlowController : MonoBehaviour
     }
 
     /// <summary>Result 状態なら SetupScene へ戻る。KeyboardManager など外部入力から呼ぶ。</summary>
+    
+    /// <summary>
+    /// ResultAnnouncement 状態なら最終Result画面へ進む。
+    /// KeyboardManagerなど外部入力から呼ぶ。
+    /// </summary>
+    public void RequestShowFinalResult()
+    {
+        if (isLoading ||
+            currentState != FlowState.ResultAnnouncement)
+        {
+            return;
+        }
+
+        ShowFinalResult();
+    }
+    
     public void RequestReturnToSetup()
     {
         if (isLoading || currentState != FlowState.Result)
@@ -85,10 +111,14 @@ public class ExperienceFlowController : MonoBehaviour
         {
             case FlowState.Ready:
                 HandleReadyInput();
-            break;
+                break;
 
             case FlowState.Quiz:
                 HandleQuizInput();
+                break;
+
+            case FlowState.ResultAnnouncement:
+                HandleResultAnnouncementInput();
                 break;
 
             case FlowState.Result:
@@ -172,6 +202,18 @@ public class ExperienceFlowController : MonoBehaviour
         }
     }
 
+    private void HandleResultAnnouncementInput()
+    {
+        bool enterPressed =
+            Keyboard.current.enterKey.wasPressedThisFrame ||
+            Keyboard.current.numpadEnterKey.wasPressedThisFrame;
+
+        if (enterPressed)
+        {
+            ShowFinalResult();
+        }
+    }
+
     private void HandleResultInput()
     {
         bool enterPressed =
@@ -227,7 +269,7 @@ public class ExperienceFlowController : MonoBehaviour
 
     public void ShowResult()
     {
-        currentState = FlowState.Result;
+        currentState = FlowState.ResultAnnouncement;
 
         SetFlowState(
             ready: false,
@@ -235,7 +277,28 @@ public class ExperienceFlowController : MonoBehaviour
             result: true
         );
 
-        Debug.Log("[GameFlow] Result");
+        if (resultScoreText != null)
+        {
+            int score = quizManager != null
+                ? quizManager.Score
+                : 0;
+
+            int total = quizManager != null
+                ? quizManager.QuestionCount
+                : 0;
+
+            resultScoreText.text =
+                $"結果発表！\n\n{total}問中 {score}問正解！";
+
+            resultScoreText.gameObject.SetActive(true);
+        }
+
+        if (resultText != null)
+        {
+            resultText.gameObject.SetActive(false);
+        }
+
+        Debug.Log("[GameFlow] ResultAnnouncement");
     }
 
     private void ReturnToSetup()
@@ -261,4 +324,22 @@ public class ExperienceFlowController : MonoBehaviour
         if (resultRoot != null)
             resultRoot.SetActive(result);
     }
+
+    private void ShowFinalResult()
+    {
+        currentState = FlowState.Result;
+
+        if (resultScoreText != null)
+        {
+            resultScoreText.gameObject.SetActive(false);
+        }
+
+        if (resultText != null)
+        {
+            resultText.gameObject.SetActive(true);
+        }
+
+        Debug.Log("[GameFlow] Result");
+    }
+
 }
