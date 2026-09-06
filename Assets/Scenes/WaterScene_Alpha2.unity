@@ -5067,8 +5067,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   side: 1
-  choiceMap: {fileID: 0}
+  choiceMap: {fileID: 11400000, guid: cb967e4af4ec49febbee8aaae5ebf643, type: 2}
   roleOverride: 0
+  positionOffset: {x: -0.01, y: -0.08, z: 0}
+  rotationOffset: {x: 0, y: 0, z: 0}
   holdLastPoseOnLoss: 1
 --- !u!1 &410087039
 GameObject:
@@ -5368,6 +5370,8 @@ MonoBehaviour:
   side: 1
   choiceMap: {fileID: 11400000, guid: cb967e4af4ec49febbee8aaae5ebf643, type: 2}
   roleOverride: 0
+  positionOffset: {x: 0, y: -0.06, z: 0}
+  rotationOffset: {x: 0, y: -90, z: 0}
   holdLastPoseOnLoss: 1
 --- !u!1001 &953151692
 PrefabInstance:
@@ -5588,6 +5592,8 @@ MonoBehaviour:
   side: 0
   choiceMap: {fileID: 11400000, guid: cb967e4af4ec49febbee8aaae5ebf643, type: 2}
   roleOverride: 0
+  positionOffset: {x: 0, y: -0.07, z: 0}
+  rotationOffset: {x: 0, y: 0, z: 0}
   holdLastPoseOnLoss: 1
 --- !u!1001 &1336792802
 PrefabInstance:
@@ -5945,6 +5951,8 @@ MonoBehaviour:
   side: 0
   choiceMap: {fileID: 11400000, guid: cb967e4af4ec49febbee8aaae5ebf643, type: 2}
   roleOverride: 0
+  positionOffset: {x: -0.06, y: -0.23, z: -0.02}
+  rotationOffset: {x: 90, y: 90, z: 0}
   holdLastPoseOnLoss: 1
 --- !u!4 &1850466294 stripped
 Transform:
@@ -5966,6 +5974,8 @@ MonoBehaviour:
   side: 1
   choiceMap: {fileID: 11400000, guid: cb967e4af4ec49febbee8aaae5ebf643, type: 2}
   roleOverride: 0
+  positionOffset: {x: 0, y: -0.1, z: 0}
+  rotationOffset: {x: 0, y: 0, z: 0}
   holdLastPoseOnLoss: 1
 --- !u!1001 &1987242603
 PrefabInstance:
@@ -11105,6 +11115,10 @@ PrefabInstance:
       propertyPath: questions.Array.data[4].questionObject
       value: 
       objectReference: {fileID: 7584590866755907725}
+    - target: {fileID: 4879517844944023008, guid: 233cf16d0e8cdbe48bfa38fe6159b859, type: 3}
+      propertyPath: questions.Array.data[1].rightAnswerName
+      value: "つみれ"
+      objectReference: {fileID: 0}
     - target: {fileID: 5795160069572760456, guid: 233cf16d0e8cdbe48bfa38fe6159b859, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -11419,7 +11433,8 @@ PrefabInstance:
       propertyPath: m_IsActive
       value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 5486870960408167641, guid: 3d0da86c3edf9ee4992fa4eff1e8d8d9, type: 3}
     m_RemovedGameObjects:
     - {fileID: 2044724513463829368, guid: 3d0da86c3edf9ee4992fa4eff1e8d8d9, type: 3}
     m_AddedGameObjects: []
@@ -11520,6 +11535,8 @@ MonoBehaviour:
   side: 0
   choiceMap: {fileID: 11400000, guid: cb967e4af4ec49febbee8aaae5ebf643, type: 2}
   roleOverride: 0
+  positionOffset: {x: 0.02, y: -0.1, z: 0}
+  rotationOffset: {x: 90, y: 90, z: 0}
   holdLastPoseOnLoss: 1
 --- !u!114 &7085981843929611738
 MonoBehaviour:
@@ -11536,6 +11553,8 @@ MonoBehaviour:
   side: 1
   choiceMap: {fileID: 11400000, guid: cb967e4af4ec49febbee8aaae5ebf643, type: 2}
   roleOverride: 0
+  positionOffset: {x: -0.08, y: -0.08, z: 0}
+  rotationOffset: {x: -90, y: 90, z: 0}
   holdLastPoseOnLoss: 1
 --- !u!114 &7085981843929611739
 MonoBehaviour:
@@ -11552,6 +11571,8 @@ MonoBehaviour:
   side: 0
   choiceMap: {fileID: 11400000, guid: cb967e4af4ec49febbee8aaae5ebf643, type: 2}
   roleOverride: 0
+  positionOffset: {x: 0.1, y: -0.08, z: 0}
+  rotationOffset: {x: 90, y: 90, z: 0}
   holdLastPoseOnLoss: 1
 --- !u!114 &7085981843929611740
 MonoBehaviour:
@@ -11568,6 +11589,8 @@ MonoBehaviour:
   side: 0
   choiceMap: {fileID: 11400000, guid: cb967e4af4ec49febbee8aaae5ebf643, type: 2}
   roleOverride: 0
+  positionOffset: {x: 0.05, y: -0.05, z: 0}
+  rotationOffset: {x: 0, y: 0, z: 0}
   holdLastPoseOnLoss: 1
 --- !u!114 &7085981843929611741
 MonoBehaviour:
@@ -11584,6 +11607,8 @@ MonoBehaviour:
   side: 1
   choiceMap: {fileID: 11400000, guid: cb967e4af4ec49febbee8aaae5ebf643, type: 2}
   roleOverride: 0
+  positionOffset: {x: -0.03, y: -0.07, z: 0}
+  rotationOffset: {x: 0, y: 0, z: 0}
   holdLastPoseOnLoss: 1
 --- !u!1001 &7580521474893148203
 PrefabInstance:
@@ -11720,7 +11745,7 @@ SceneRoots:
   - {fileID: 1987242603}
   - {fileID: 21873428}
   - {fileID: 4317713903936328880}
-  - {fileID: 7085981843929611726}
   - {fileID: 300380270}
   - {fileID: 1755478439}
   - {fileID: 1581430463}
+  - {fileID: 7085981843929611726}
