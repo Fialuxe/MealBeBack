@@ -5890,6 +5890,10 @@ PrefabInstance:
       propertyPath: m_IsActive
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 3865312960624829100, guid: c25e4cca28e1f5241a33aac968a23a9b, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: b30a1729c04c05344800a173c73d41f6, type: 2}
     - target: {fileID: 7292678762338613605, guid: c25e4cca28e1f5241a33aac968a23a9b, type: 3}
       propertyPath: m_Name
       value: Oshinagaki 1
@@ -11117,7 +11121,7 @@ PrefabInstance:
       objectReference: {fileID: 7584590866755907725}
     - target: {fileID: 4879517844944023008, guid: 233cf16d0e8cdbe48bfa38fe6159b859, type: 3}
       propertyPath: questions.Array.data[1].rightAnswerName
-      value: "つみれ"
+      value: "\u3064\u307F\u308C"
       objectReference: {fileID: 0}
     - target: {fileID: 5795160069572760456, guid: 233cf16d0e8cdbe48bfa38fe6159b859, type: 3}
       propertyPath: m_LocalPosition.x
